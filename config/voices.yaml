@@ -12,21 +12,25 @@ output_format: mp3_44100_128   # 44.1 kHz, 128 kbps
 max_chars_per_request: 2500
 
 narrator:
-  # Sofia - Captivating Narration: femenina, cálida, suave, ideal cuentos.
-  voice_id: pN4aFdNIp2mvGfTwy1Oj
-  # Ajustes orientados a narración infantil cálida, clara y tranquila.
-  # No exageramos la lentitud: speed 0.95 mantiene naturalidad.
+  # EsmeSu: femenina, español MEXICANO (es-MX), tono suave y cálido,
+  # narración lenta y envolvente, tierna para cuentos antes de dormir.
+  voice_id: KK9axBTGPbfqW7PU48BE
+  language: es-MX
+  # Ajustes más calmados y tiernos (mayor estabilidad, ritmo pausado).
   settings:
-    stability: 0.7
-    similarity_boost: 0.75
+    stability: 0.85
+    similarity_boost: 0.80
     style: 0.0
     use_speaker_boost: true
-    speed: 0.95
+    speed: 0.90
 
-# Voces alternativas cálidas/suaves en español (referencia rápida):
-#   Alma   (femenina, envolvente) : 8gK5gnQBZnJWm1ta8R8X
-#   Mario C. (masculina, sabia)   : crXOIS13NaTVLeuWd3Dp
-#   Andre  (masculina, pausada)   : K7vlllngMGapgRQRDsqK
+# Voces alternativas calmadas/tiernas en ESPAÑOL MEXICANO (es-MX):
+#   EsmeSu   (femenina, suave, lenta)     : KK9axBTGPbfqW7PU48BE  [por defecto]
+#   Aurelio  (masculina, gentil y tierna) : PHNjiQZ95SnMQ7rDQsXz
+#   Fernanda (femenina, cálida, natural)  : NyQ87MpRGbszyh7rZLXM
+#   Camila   (femenina joven, cálida)     : spPXlKT5a4JMfbhPRAzA
+# Otras (no mexicanas) cálidas:
+#   Sofia (femenina, es-ES)               : pN4aFdNIp2mvGfTwy1Oj
 
 # Personajes (opcional). Cada uno con su propio voice_id y ajustes.
 characters: {}
