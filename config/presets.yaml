@@ -40,6 +40,14 @@ audio_cleanup:
     denoise_nf2: -45
     body_gain_db: 3            # realce del cuerpo de las olas (~260 Hz)
     air_gain_db: 2             # realce de la espuma/aire (~4.2 kHz)
+    # Exciter: regenera agudos/"aire de espuma" a partir del propio mar (el
+    # Plaud corta en ~7 kHz y suena apagado). Sube/baja con las olas (natural).
+    exciter: true
+    exciter_amount: 3
+    exciter_drive: 7
+    exciter_freq: 5500
+    exciter_ceil: 14000
+    air_treble_db: 2           # brillo extra suave (~5 kHz)
     loudnorm_i: -15            # loudness objetivo (LUFS)
 
 # Loops (dormir/relajación).

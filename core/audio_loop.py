@@ -98,6 +98,18 @@ def build_ocean_filter(cfg):
         partes.append(f"equalizer=f=260:width_type=o:width=1.2:g={cfg['body_gain_db']}")
     if cfg.get("air_gain_db"):
         partes.append(f"equalizer=f=4200:width_type=o:width=1.6:g={cfg['air_gain_db']}")
+
+    # Exciter: regenera agudos/"aire" a partir del propio mar (brillo natural,
+    # sincronizado con las olas). Compensa que la grabación no tiene agudos.
+    if cfg.get("exciter"):
+        partes.append(
+            f"aexciter=level_in=1:level_out=1:amount={cfg.get('exciter_amount', 3)}:"
+            f"drive={cfg.get('exciter_drive', 7)}:blend=2:"
+            f"freq={cfg.get('exciter_freq', 5500)}:ceil={cfg.get('exciter_ceil', 14000)}"
+        )
+        if cfg.get("air_treble_db"):
+            partes.append(f"treble=g={cfg['air_treble_db']}:f=5200")
+
     partes.append("alimiter=limit=0.891")  # techo ~ -1 dBFS
     return ",".join(partes)
 
