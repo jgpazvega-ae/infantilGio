@@ -7,7 +7,7 @@ video:
   fps: 30
   video_codec: libx264
   audio_codec: aac
-  audio_bitrate: 192k
+  audio_bitrate: 256k
   pixel_format: yuv420p
   preset: medium          # equilibrio calidad/velocidad de x264
   container: mp4

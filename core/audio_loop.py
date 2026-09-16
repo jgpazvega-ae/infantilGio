@@ -11,18 +11,58 @@ from pathlib import Path
 from core.ffmpeg_utils import get_duration, run_ffmpeg
 
 
-def normalize_audio(src, dst, sample_rate=44100, channels=2, logger=None):
+def _codec_args(dst):
+    """Codec sin pérdida para .wav/.flac; mp3 para el resto (evita apilar
+    generaciones de MP3 en los intermedios)."""
+    ext = Path(dst).suffix.lower()
+    if ext == ".wav":
+        return ["-c:a", "pcm_s16le"]
+    if ext == ".flac":
+        return ["-c:a", "flac"]
+    return ["-c:a", "libmp3lame", "-q:a", "2"]
+
+
+def build_audio_filter(source_sample_rate=None, clean=True):
     """
-    Normaliza el volumen (EBU R128 loudnorm) y estandariza sample rate/canales,
-    sin destruir la dinámica natural del sonido (loudnorm de una pasada). No
-    modifica el archivo original. Devuelve dst.
+    Construye la cadena de filtros de audio adecuada a la calidad del origen.
+
+    - Fuente de baja calidad (sample_rate <= 22050, típico de grabaciones
+      muffled/comprimidas): repara clipping (adeclip), reduce artefactos
+      (afftdn), recorta el techo brillante/artefactado justo por debajo de
+      Nyquist, añade algo de cuerpo y normaliza el volumen. Rescata lo audible
+      sin inventar agudos que el archivo no tiene.
+    - Fuente de buena calidad: cadena mínima (loudnorm) para no degradar.
+
+    loudnorm va al final con TP=-1.5 dB para dejar headroom y evitar clipping.
+    """
+    if not clean:
+        return "loudnorm=I=-16:TP=-1.5:LRA=11"
+
+    baja = source_sample_rate is not None and source_sample_rate <= 22050
+    if baja:
+        # Techo ~ 92% de Nyquist del origen para tapar el brickwall/artefactos.
+        techo = int(min(7600, (source_sample_rate / 2) * 0.92))
+        return (
+            f"adeclip,afftdn=nf=-20,highpass=f=45,lowpass=f={techo},"
+            f"bass=g=2.5:f=110,loudnorm=I=-16:TP=-1.5:LRA=11"
+        )
+    return "adeclip,highpass=f=25,loudnorm=I=-16:TP=-1.5:LRA=11"
+
+
+def normalize_audio(src, dst, af=None, source_sample_rate=None, clean=True,
+                    sample_rate=44100, channels=2, logger=None):
+    """
+    Limpia y normaliza el audio (ver build_audio_filter) y estandariza sample
+    rate/canales, sin destruir la dinámica natural. No modifica el original.
+    Escribe en formato sin pérdida si `dst` es .wav/.flac. Devuelve dst.
     """
     src, dst = Path(src), Path(dst)
+    if af is None:
+        af = build_audio_filter(source_sample_rate, clean=clean)
     run_ffmpeg([
-        "-i", src,
-        "-af", "loudnorm=I=-18:TP=-1.5:LRA=11",
+        "-i", src, "-af", af,
         "-ar", str(sample_rate), "-ac", str(channels),
-        "-c:a", "libmp3lame", "-q:a", "2", dst,
+        *_codec_args(dst), dst,
     ], logger=logger)
     return dst
 
@@ -45,7 +85,7 @@ def build_seamless_audio(src, dst, crossfade, logger=None):
     )
     run_ffmpeg([
         "-i", src, "-filter_complex", filtro, "-map", "[a]",
-        "-c:a", "libmp3lame", "-q:a", "2", dst,
+        *_codec_args(dst), dst,
     ], logger=logger)
     return dst
 

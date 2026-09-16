@@ -193,16 +193,18 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
             f"  Recommended action:      libera espacio o usa una duración menor."
         )
 
-    # 4) Normalización de audio (sin tocar el original) + loop seamless.
+    # 4) Limpieza/normalización de audio (sin tocar el original) + loop seamless.
+    #    Intermedios sin pérdida (.wav) para no apilar generaciones de MP3;
+    #    la única codificación con pérdida es el AAC final del video.
     src_for_loop = audio_path
     if normalize:
-        norm = config.CACHE_DIR / f"{audio_path.stem}_norm.mp3"
+        norm = config.CACHE_DIR / f"{audio_path.stem}_clean.wav"
         if force or not norm.exists():
-            normalize_audio(audio_path, norm, logger=log)
+            normalize_audio(audio_path, norm, source_sample_rate=sr, clean=True, logger=log)
         src_for_loop = norm
 
     xfade = int((config.PRESETS.get("sleep", {}).get(preset, {}) or {}).get("transition_duration", 8))
-    seamless_audio = config.CACHE_DIR / f"{audio_path.stem}_seamless.mp3"
+    seamless_audio = config.CACHE_DIR / f"{audio_path.stem}_seamless.wav"
     if force or not seamless_audio.exists():
         build_seamless_audio(src_for_loop, seamless_audio, min(xfade, max(1, a_dur / 3)), logger=log)
 
@@ -221,7 +223,9 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
         base_clip, seamless_audio, out, target,
         width=vp.get("width", 1920), height=vp.get("height", 1080),
         fps=vp.get("fps", 30), preset=vp.get("preset", "medium"),
-        crossfade=xfade, audio_volume=1.0, logger=log, cache_dir=config.CACHE_DIR,
+        crossfade=xfade, audio_volume=1.0,
+        audio_bitrate=vp.get("audio_bitrate", "256k"),
+        logger=log, cache_dir=config.CACHE_DIR,
     )
     out_dur = get_duration(out)
 

@@ -78,7 +78,7 @@ def build_video_loop(src, dst, target_seconds, width, height, fps,
 
 def build_sleep_video(video_src, audio_src, dst, target_seconds, width, height,
                       fps, preset="medium", crossfade=0, audio_volume=1.0,
-                      logger=None, cache_dir=None):
+                      audio_bitrate="256k", logger=None, cache_dir=None):
     """
     Produce el video de dormir (video en loop + audio en loop) de duración
     `target_seconds`, de forma eficiente: el clip base se normaliza una sola
@@ -100,7 +100,7 @@ def build_sleep_video(video_src, audio_src, dst, target_seconds, width, height,
         "-filter_complex", f"[1:a]volume={audio_volume}[a]",
         "-map", "0:v", "-map", "[a]",
         "-t", f"{target_seconds}",
-        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", str(audio_bitrate),
         "-shortest", dst,
     ], logger=logger)
     return dst
