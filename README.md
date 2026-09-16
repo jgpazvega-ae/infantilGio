@@ -137,6 +137,46 @@ Duración por defecto (sin `--duration`): **05:55:00**. Se acepta cualquier
 duración (`HH:MM:SS`, `2h`, `90m`, segundos). El audio base se analiza
 automáticamente; no se asume su duración.
 
+### 3.3.1 Sleep Video Factory (visual nocturno procedural)
+
+`scripts/create_sleep_video.py` produce videos de dormir de larga duración con
+un **visual nocturno procedural** (no necesita footage): mar oscuro, movimiento
+mínimo e hipnótico, luna tenue.
+
+```bash
+python scripts/create_sleep_video.py \
+    --audio assets/ambient/ambient_mar.mp3 \
+    --duration 05:55:00 --preset ocean_night \
+    --output output/sleep/ocean-night-5h55.mp4
+```
+
+- **Presets** (en `config/presets.yaml → sleep`): `ocean_night`,
+  `black_screen`, `ocean_bubbles` (arquitectura preparada para `rain_dark`,
+  `forest_dark`, `stars_dark`, `cloud_dark`). Ajusta brillo, saturación,
+  contraste, velocidad de movimiento, densidad de burbujas/partículas y
+  crossfade del loop.
+- **Con footage propio:** añade `--footage assets/footage/mar.mp4` (se usa en
+  lugar del visual procedural).
+- **Audio:** se normaliza (loudnorm, 44.1 kHz estéreo) sin destruir la dinámica
+  natural, y se loopea con crossfade para evitar clicks. El original no se toca.
+- **Rendimiento:** el clip base se normaliza una sola vez; el video largo se
+  genera con `stream-copy` (no se recodifican horas). Antes del render se
+  **estima el espacio en disco** y se aborta si no cabe.
+- **Antes de las 5h55**, valida con previews cortos (mismo audio/preset/pipeline):
+
+  ```bash
+  python scripts/create_sleep_video.py --audio ...mp3 --duration 00:01:00 \
+      --output output/sleep/preview_60s.mp4
+  python scripts/create_sleep_video.py --audio ...mp3 --duration 00:05:00 \
+      --output output/sleep/preview_5min.mp4
+  ```
+
+- Solo para probar el visual: `python scripts/sleep_visual.py --preset
+  ocean_night --duration 20 --output /tmp/base.mp4`.
+
+`--force` regenera; `--dry-run` muestra los pasos y la estimación de disco sin
+crear nada. El resultado válido no se regenera (reproducibilidad).
+
 ### 3.4 Solo audio ambiental
 
 ```bash
@@ -267,6 +307,8 @@ la lógica de QC (sin requerir FFmpeg ni red).
 - [x] Fundación: estructura, config, logging, CLI, detección de FFmpeg, errores.
 - [x] ElevenLabs: narración con troceo, caché y `--force`.
 - [x] Sleep engine: loops de audio/video de duración exacta (5 h 55 min).
+- [x] Sleep Video Factory: visual nocturno procedural (ocean_night), previews,
+  estimación de disco, thumbnail oscuro y package.
 - [x] Ensamblado de video de cuentos.
 - [x] Story engine: metadata, scene planner, plantilla de cuento.
 - [x] Miniaturas, metadata, control de calidad, pipeline maestro, packages.

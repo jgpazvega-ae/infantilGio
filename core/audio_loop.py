@@ -11,6 +11,22 @@ from pathlib import Path
 from core.ffmpeg_utils import get_duration, run_ffmpeg
 
 
+def normalize_audio(src, dst, sample_rate=44100, channels=2, logger=None):
+    """
+    Normaliza el volumen (EBU R128 loudnorm) y estandariza sample rate/canales,
+    sin destruir la dinámica natural del sonido (loudnorm de una pasada). No
+    modifica el archivo original. Devuelve dst.
+    """
+    src, dst = Path(src), Path(dst)
+    run_ffmpeg([
+        "-i", src,
+        "-af", "loudnorm=I=-18:TP=-1.5:LRA=11",
+        "-ar", str(sample_rate), "-ac", str(channels),
+        "-c:a", "libmp3lame", "-q:a", "2", dst,
+    ], logger=logger)
+    return dst
+
+
 def build_seamless_audio(src, dst, crossfade, logger=None):
     """
     Crea una versión "loopeable" del audio: funde (acrossfade) el final con el

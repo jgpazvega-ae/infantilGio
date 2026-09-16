@@ -92,8 +92,14 @@ def generate_story_from_params(title, character="Andrés", theme="amistad",
     coherente y suave para dormir. No usa LLM; sirve para prototipar y probar
     el pipeline de extremo a extremo. Devuelve metadata + texto.
     """
+    # Contracción "de + el ..." -> "del ..." para que suene natural.
+    def _de(lugar):
+        if lugar.lower().startswith("el "):
+            return "del " + lugar[3:]
+        return "de " + lugar
+
     intro = (
-        f"Había una vez, en {setting}, un pequeño personaje llamado {character}. "
+        f"Había una vez, en {setting}, alguien muy especial llamado {character}. "
         f"A {character} le encantaba mirar el cielo por las noches, cuando todo "
         f"estaba tranquilo y en calma."
     )
@@ -109,8 +115,8 @@ def generate_story_from_params(title, character="Andrés", theme="amistad",
         f"tranquila. Respiró hondo, una vez... y otra vez... muy despacio.",
     ]
     cierre = (
-        f"Y así, arropado por la calma de {setting}, {character} se quedó "
-        f"profundamente dormido. Buenas noches. Que sueñes cosas bonitas."
+        f"Y así, con la calma {_de(setting)}, {character} se durmió "
+        f"profundamente. Buenas noches. Que sueñes cosas bonitas."
     )
     partes = [intro] + cuerpo[: max(1, paragraphs - 2)] + [cierre]
     texto = "\n\n".join(partes)
