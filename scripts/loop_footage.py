@@ -46,12 +46,18 @@ def _crear_clip_loopeable(entrada, salida, xfade_seg):
             f"crossfade de {xfade_seg}s."
         )
     offset = dur - xfade_seg
-    # Superpone el inicio sobre el final con xfade (video) y acrossfade (audio).
+    # Divide el video en tres copias (split=3): el cuerpo principal, la cola
+    # (últimos xfade_seg segundos) y la cabeza (primeros xfade_seg segundos).
+    # La cola se funde (xfade) sobre la cabeza para que, al repetir el clip
+    # resultante, el final enlace suavemente con el inicio.
+    # Nota: xfade exige frame rate constante, por lo que normalizamos con
+    # fps/format antes de dividir y en cada rama que entra al crossfade.
+    fps = config.VIDEO_FPS
     filtro = (
-        f"[0:v]split[body][pre];"
-        f"[pre]trim=start={offset},setpts=PTS-STARTPTS[tail];"
-        f"[body]trim=end={offset},setpts=PTS-STARTPTS[main];"
-        f"[0:v]trim=end={xfade_seg},setpts=PTS-STARTPTS[head];"
+        f"[0:v]fps={fps},format=yuv420p,split=3[a][b][c];"
+        f"[a]trim=end={offset},setpts=PTS-STARTPTS[main];"
+        f"[b]trim=start={offset},setpts=PTS-STARTPTS,fps={fps}[tail];"
+        f"[c]trim=end={xfade_seg},setpts=PTS-STARTPTS,fps={fps}[head];"
         f"[tail][head]xfade=transition=fade:duration={xfade_seg}:offset=0[xf];"
         f"[main][xf]concat=n=2:v=1:a=0[v]"
     )
