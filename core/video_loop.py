@@ -101,6 +101,7 @@ def build_sleep_video(video_src, audio_src, dst, target_seconds, width, height,
         normalize_clip(video_src, norm, width, height, fps, preset=preset,
                        crossfade=crossfade, logger=logger)
 
+    silent = None
     if intro and intro.get("overlay_png"):
         silent = _build_silent_with_intro(norm, cache_dir, target_seconds, fps,
                                            preset, width, height, intro, logger)
@@ -117,6 +118,10 @@ def build_sleep_video(video_src, audio_src, dst, target_seconds, width, height,
         "-c:v", "copy", "-c:a", "aac", "-b:a", str(audio_bitrate),
         "-shortest", dst,
     ], logger=logger)
+    # El video silencioso con intro (varios GB) ya está muxeado en dst: se
+    # elimina para no dejar un duplicado ocupando disco entre renders.
+    if silent is not None:
+        Path(silent).unlink(missing_ok=True)
     return dst
 
 
@@ -168,4 +173,8 @@ def _build_silent_with_intro(norm, cache_dir, target_seconds, fps, preset,
         "-f", "concat", "-safe", "0", "-i", str(concat_list),
         "-c", "copy", "-an", str(silent),
     ], logger=logger)
+    # Libera el cuerpo intermedio (varios GB) en cuanto el concat lo ha
+    # consumido: reduce el pico de disco en los renders muy largos.
+    body_clip.unlink(missing_ok=True)
+    intro_clip.unlink(missing_ok=True)
     return silent
