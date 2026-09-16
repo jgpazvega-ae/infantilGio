@@ -1,0 +1,14 @@
+# Dependencias de infantilGio.
+# Instalar con: pip install -r requirements.txt
+
+elevenlabs>=1.0.0      # Cliente oficial de ElevenLabs (text-to-speech)
+moviepy>=1.0.3         # Edición de video (utilidades puntuales)
+ffmpeg-python>=0.2.0   # Wrapper de ffmpeg
+pillow>=10.0.0         # Miniaturas
+python-dotenv>=1.0.0   # Variables de entorno (.env)
+PyYAML>=6.0            # Configuración en config/*.yaml
+
+# --- Opcional (solo para la Fase 10: subida a YouTube) ---
+# google-api-python-client
+# google-auth-oauthlib
+# google-auth-httplib2

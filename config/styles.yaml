@@ -1,0 +1,29 @@
+# Identidad visual global (configurable) y estilo de miniaturas.
+# Permite mantener coherencia visual entre producciones.
+
+default_visual_style: soft_storybook
+
+visual_styles:
+  soft_storybook:
+    name: soft_storybook
+    description: >
+      Estética infantil, cálida y amigable, con toque cinematográfico suave:
+      colores agradables, iluminación suave, composición limpia, personajes
+      consistentes, apropiada para contenido familiar y niños pequeños.
+    # Pista de estilo reutilizable por futuros generadores de imágenes/video.
+    prompt_hint: >
+      soft storybook illustration, warm gentle lighting, pastel palette,
+      clean composition, cozy, child-friendly, cinematic but calm
+
+# Estilo de miniaturas (1280x720).
+thumbnail:
+  width: 1280
+  height: 720
+  font_size: 90
+  text_color: [255, 255, 255]     # blanco
+  stroke_color: [0, 0, 0]         # contorno negro (legibilidad)
+  stroke_width: 6
+  # Fuente opcional; si no existe, se usa una del sistema o la de Pillow.
+  font_file: assets/fonts/title.ttf
+  # Oscurecer la mitad inferior para que el título resalte.
+  darken_bottom: true

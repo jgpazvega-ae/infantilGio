@@ -1,0 +1,44 @@
+# Configuración de voces de ElevenLabs.
+# El narrador es obligatorio; los personajes son opcionales (la arquitectura
+# los soporta aunque no se usen en la primera fase).
+#
+# El voice_id se puede sobrescribir con la variable de entorno
+# ELEVENLABS_VOICE_ID (tiene prioridad sobre 'narrator.voice_id').
+
+# Modelo de TTS. eleven_v3 es el más expresivo y natural (menos "IA"),
+# y admite etiquetas de dirección de audio en el texto (p. ej. [softly]).
+model_id: eleven_v3
+output_format: mp3_44100_128   # 44.1 kHz, 128 kbps
+# Límite de caracteres por petición (troceo de textos largos).
+max_chars_per_request: 2500
+
+narrator:
+  # EsmeSu: femenina, español MEXICANO (es-MX), tono suave y cálido,
+  # narración lenta y envolvente, tierna para cuentos antes de dormir.
+  voice_id: KK9axBTGPbfqW7PU48BE
+  language: es-MX
+  # Ajustes NATURALES (menos "IA"): estabilidad media (más expresión y
+  # variación humana), algo de estilo, y velocidad natural (no arrastrada).
+  settings:
+    stability: 0.50
+    similarity_boost: 0.80
+    style: 0.35
+    use_speaker_boost: true
+    speed: 0.97
+
+# Voces alternativas calmadas/tiernas en ESPAÑOL MEXICANO (es-MX):
+#   EsmeSu   (femenina, suave, lenta)     : KK9axBTGPbfqW7PU48BE  [por defecto]
+#   Aurelio  (masculina, gentil y tierna) : PHNjiQZ95SnMQ7rDQsXz
+#   Fernanda (femenina, cálida, natural)  : NyQ87MpRGbszyh7rZLXM
+#   Camila   (femenina joven, cálida)     : spPXlKT5a4JMfbhPRAzA
+# Otras (no mexicanas) cálidas:
+#   Sofia (femenina, es-ES)               : pN4aFdNIp2mvGfTwy1Oj
+
+# Personajes (opcional). Cada uno con su propio voice_id y ajustes.
+characters: {}
+  # ejemplo:
+  # raton_timido:
+  #   voice_id: XXXXXXXXXXXXXXXXXXXX
+  #   settings:
+  #     stability: 0.5
+  #     similarity_boost: 0.75

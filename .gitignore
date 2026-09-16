@@ -1,0 +1,44 @@
+# Entorno y credenciales
+.env
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Salidas generadas (pesadas: no versionar)
+audio/narration/*.mp3
+audio/characters/*.mp3
+audio/final/*.mp3
+video/scenes/*.mp4
+video/intermediate/*.mp4
+video/final/*.mp4
+output/stories/*
+output/sleep/*
+output/packages/*
+thumbnails/*.png
+thumbnails/*.jpg
+cache/*
+logs/*.log
+
+# Artefactos generados de contenido (los cuentos fuente sí se versionan)
+content/scene_plans/*.json
+content/scene_plans/*.txt
+content/metadata/*.json
+content/metadata/*.txt
+
+# No versionar material base pesado (descomenta si aplica)
+# assets/footage/*.mp4
+# assets/music/*
+# assets/images/*
+
+# YouTube OAuth
+client_secret*.json
+token.json
+token.pickle
+
+# Conserva la estructura de carpetas
+!**/.gitkeep
+
+# Sistema
+.DS_Store

@@ -1,0 +1,161 @@
+"""
+assemble_video.py — Ensamblado de video de cuento (Fase 4).
+
+Combina narración (100%) + footage (en loop hasta cubrir la narración) +
+ambiente opcional (~18%). El video termina exactamente cuando termina la
+narración. Salida 1920x1080 en video/final/.
+
+Uso:
+    python scripts/assemble_video.py andre --footage assets/footage/mar.mp4
+    python scripts/assemble_video.py andre --footage mar.mp4 --no-ambient
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+import config  # noqa: E402
+from core.audio_loop import build_ocean_filter, normalize_audio  # noqa: E402
+from core.ffmpeg_utils import (check_ffmpeg, get_duration,  # noqa: E402
+                               run_ffmpeg)
+from core.logging_utils import get_logger  # noqa: E402
+
+log = get_logger("assemble_video")
+
+
+def _clean_sea(logger=None, force=False):
+    """
+    Devuelve un ambiente de mar LIMPIO (perfil 'ocean') a partir de la
+    grabación fuente, cacheado. Si no existe la fuente, devuelve None.
+    """
+    src = config.DEFAULT_SEA_AUDIO
+    if not src.exists():
+        return None
+    dst = config.CACHE_DIR / "sea_clean_ocean.wav"
+    if force or not dst.exists():
+        af = build_ocean_filter(config.PRESETS.get("audio_cleanup", {}).get("ocean", {}))
+        normalize_audio(src, dst, af=af, sample_rate=44100, channels=2, logger=logger)
+    return dst
+
+
+def _resolve(ref, folder, suffixes=(".mp4", ".mp3")):
+    ref = Path(ref)
+    if ref.exists():
+        return ref
+    for cand in [folder / ref.name] + [(folder / ref.name).with_suffix(s) for s in suffixes]:
+        if cand.exists():
+            return cand
+    raise FileNotFoundError(f"No se encontró: {ref} (ni en {folder})")
+
+
+def assemble(name, footage=None, image=None, ambient=None, use_ambient=True,
+             force=False, dry_run=False):
+    """Ensambla el video del cuento. Devuelve la ruta del mp4 final.
+
+    Fondo: --footage (clip propio) o --image (una imagen fija que se anima con
+    mar en movimiento, del tamaño de la narración).
+    """
+    check_ffmpeg()
+    config.ensure_dirs()
+
+    narration = _resolve(Path(name).with_suffix(".mp3") if Path(name).suffix == "" else name,
+                         config.NARRATION_DIR, (".mp3",))
+    dur = get_duration(narration)
+
+    use_image = bool(image and not footage)
+    img = None
+    if use_image:
+        img = Path(image)
+        if not img.exists():
+            img = config.IMAGES_DIR / Path(image).name
+        if not img.exists():
+            raise FileNotFoundError(f"No existe la imagen: {image}")
+    else:
+        footage = _resolve(footage, config.FOOTAGE_DIR, (".mp4", ".mov", ".mkv"))
+
+    amb = None
+    if use_ambient:
+        if ambient:
+            # Ambiente explícito: se usa tal cual.
+            try:
+                amb = _resolve(ambient, config.ASSETS_AMBIENT_DIR, (".mp3", ".wav", ".flac"))
+            except FileNotFoundError:
+                log.warning("No se encontró el ambiente indicado; se omite el fondo.")
+        else:
+            # Por defecto: mar LIMPIO (perfil 'ocean').
+            amb = _clean_sea(logger=log, force=force)
+            if amb is None:
+                log.warning("Sin grabación del mar; se omite el fondo.")
+
+    vp = config.video_preset()
+    ap = config.audio_preset()
+    w, h, fps = vp.get("width", 1920), vp.get("height", 1080), vp.get("fps", 30)
+    out = config.VIDEO_FINAL_DIR / f"{narration.stem}.mp4"
+
+    if dry_run:
+        fondo = img.name if use_image else footage.name
+        log.info("[dry-run] narración=%s (%.1fs) fondo=%s ambiente=%s -> %s",
+                 narration.name, dur, fondo, amb.name if amb else "no", out)
+        return out
+
+    if out.exists() and not force and abs(get_duration(out) - dur) <= 2:
+        log.info("Ya existe y coincide: %s (usa --force)", out)
+        return out
+
+    # Construye el fondo de mar en movimiento a partir de la imagen (solo aquí,
+    # no en dry-run), del tamaño de la narración.
+    if use_image:
+        from scripts import sleep_visual  # import perezoso
+        base = config.CACHE_DIR / f"story_bg_{img.stem}_{int(dur)+2}s.mp4"
+        if force or not base.exists():
+            sleep_visual.build_from_image(img, base, duration=int(dur) + 2,
+                                          logger=log, cache_dir=config.CACHE_DIR)
+        footage = base
+
+    scale = (f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
+             f"crop={w}:{h},fps={fps}[v]")
+    inputs = ["-stream_loop", "-1", "-i", footage, "-i", narration]
+    if amb is not None:
+        inputs += ["-stream_loop", "-1", "-i", amb]
+        filtro = (f"{scale};[1:a]volume={ap.get('narration_volume', 1.0)}[n];"
+                  f"[2:a]volume={ap.get('ambient_volume', 0.18)}[b];"
+                  f"[n][b]amix=inputs=2:duration=first:dropout_transition=0[a]")
+    else:
+        filtro = f"{scale};[1:a]volume={ap.get('narration_volume', 1.0)}[a]"
+
+    run_ffmpeg([
+        *inputs, "-filter_complex", filtro, "-map", "[v]", "-map", "[a]",
+        "-t", f"{dur}", "-c:v", vp.get("video_codec", "libx264"),
+        "-preset", vp.get("preset", "medium"), "-pix_fmt", vp.get("pixel_format", "yuv420p"),
+        "-r", str(fps), "-c:a", vp.get("audio_codec", "aac"),
+        "-b:a", vp.get("audio_bitrate", "192k"), "-shortest", out,
+    ], logger=log)
+
+    log.info("OK video -> %s | duración=%.1fs", out, get_duration(out))
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Ensambla video de cuento (narración+footage+ambiente).")
+    ap.add_argument("name", help="Nombre base de la narración (audio/narration/)")
+    ap.add_argument("--footage", default=None, help="Clip de fondo (assets/footage/)")
+    ap.add_argument("--image", default=None, help="Imagen de fondo (mar en movimiento)")
+    ap.add_argument("--ambient", default=None, help="Audio ambiental (por defecto el del mar)")
+    ap.add_argument("--no-ambient", action="store_true", help="No mezclar ambiente")
+    ap.add_argument("--force", action="store_true", help="Regenera aunque exista")
+    ap.add_argument("--dry-run", action="store_true", help="Muestra sin generar")
+    args = ap.parse_args()
+    if not args.footage and not args.image:
+        ap.error("Indica --footage o --image")
+    try:
+        assemble(args.name, footage=args.footage, image=args.image, ambient=args.ambient,
+                 use_ambient=not args.no_ambient, force=args.force, dry_run=args.dry_run)
+    except Exception as exc:  # noqa: BLE001
+        log.error("ERROR: %s", exc)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
