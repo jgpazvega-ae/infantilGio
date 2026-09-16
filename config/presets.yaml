@@ -66,6 +66,21 @@ common_durations:
   - "05:00:00"
   - "05:55:00"
 
+# Mensaje de entrada (intro) de los videos de dormir: aparece y se desvanece
+# solo al inicio; el resto del video queda limpio.
+sleep_intro:
+  enabled: true
+  start: 3            # segundo en que empieza a aparecer
+  fade: 1.5           # duración del fundido (entrada/salida)
+  hold: 11            # segundos visible
+  fontsize: 42
+  text: |
+    Este video está diseñado para ayudarte a dormir.
+    Baja las luces, respira profundo y suelta el día.
+    En la oscuridad y la calma, tu cuerpo libera
+    melatonina de forma natural para un descanso profundo.
+    Cierra los ojos... y déjate llevar. Buenas noches.
+
 # Presets de video de dormir (visual procedural). Valores 0..1 salvo indicado.
 # Prioridad: relajación > espectacularidad. Movimiento casi imperceptible.
 sleep:

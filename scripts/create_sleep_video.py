@@ -78,6 +78,44 @@ def _locate_audio(ref):
     raise FileNotFoundError("No se encontró ningún audio (revisa assets/ambient/).")
 
 
+def _intro_text_png(dst, text, size=(1920, 1080), fontsize=42):
+    """
+    Crea un PNG transparente con el mensaje de intro centrado (texto blanco con
+    sombra suave para legibilidad sobre fondo oscuro). Devuelve dst.
+    """
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+    W, H = size
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", fontsize)
+    except OSError:
+        font = ImageFont.load_default()
+
+    lines = [ln.strip() for ln in str(text).strip().splitlines() if ln.strip()]
+    line_h = draw.textbbox((0, 0), "Ay", font=font)[3] + 20
+    total_h = line_h * len(lines)
+    y = (H - total_h) // 2
+    # Sombra: dibuja el texto en una capa negra difuminada.
+    shadow = Image.new("RGBA", size, (0, 0, 0, 0))
+    sdraw = ImageDraw.Draw(shadow)
+    for i, ln in enumerate(lines):
+        w = draw.textbbox((0, 0), ln, font=font)[2]
+        x = (W - w) // 2
+        sdraw.text((x, y + i * line_h), ln, font=font, fill=(0, 0, 0, 220))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(6))
+    img = Image.alpha_composite(img, shadow)
+    draw = ImageDraw.Draw(img)
+    for i, ln in enumerate(lines):
+        w = draw.textbbox((0, 0), ln, font=font)[2]
+        x = (W - w) // 2
+        draw.text((x, y + i * line_h), ln, font=font, fill=(240, 244, 255, 255))
+    dst = Path(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    img.save(dst, "PNG")
+    return dst
+
+
 def _dark_thumbnail(dst, title, subtitle="", size=(1280, 720)):
     """Miniatura oscura: gradiente nocturno + luna + tipografía mínima."""
     from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -239,6 +277,17 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
 
     # 6) Render largo (eficiente): video loop stream-copy + audio loop AAC.
     vp = config.video_preset()
+
+    # Mensaje de entrada (intro): aparece y se desvanece al inicio.
+    intro = None
+    icfg = config.PRESETS.get("sleep_intro", {}) or {}
+    if icfg.get("enabled") and icfg.get("text"):
+        png = _intro_text_png(config.CACHE_DIR / "intro_text.png", icfg["text"],
+                              size=(vp.get("width", 1920), vp.get("height", 1080)),
+                              fontsize=icfg.get("fontsize", 42))
+        intro = {"overlay_png": str(png), "start": icfg.get("start", 3),
+                 "fade": icfg.get("fade", 1.5), "hold": icfg.get("hold", 11)}
+
     log.info("Render %s -> %s", format_duration(target), out)
     build_sleep_video(
         base_clip, seamless_audio, out, target,
@@ -246,7 +295,7 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
         fps=vp.get("fps", 30), preset=vp.get("preset", "medium"),
         crossfade=xfade, audio_volume=1.0,
         audio_bitrate=vp.get("audio_bitrate", "256k"),
-        logger=log, cache_dir=config.CACHE_DIR,
+        logger=log, cache_dir=config.CACHE_DIR, intro=intro,
     )
     out_dur = get_duration(out)
 
