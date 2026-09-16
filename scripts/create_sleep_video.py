@@ -194,6 +194,7 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
     # El slug (nombre del package) sigue al --output si se indica; si no, preset+duración.
     slug = slugify(Path(output).stem) if output else slugify(f"{preset}-{tag}")
     out = Path(output) if output else (config.OUTPUT_SLEEP_DIR / f"{slug}.mp4")
+    out.parent.mkdir(parents=True, exist_ok=True)  # asegura el dir de salida (p. ej. --output en un dir nuevo)
 
     pkg = config.PACKAGES_DIR / slug
 
