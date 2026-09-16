@@ -50,15 +50,30 @@ def _resolve(ref, folder, suffixes=(".mp4", ".mp3")):
     raise FileNotFoundError(f"No se encontró: {ref} (ni en {folder})")
 
 
-def assemble(name, footage, ambient=None, use_ambient=True, force=False, dry_run=False):
-    """Ensambla el video del cuento. Devuelve la ruta del mp4 final."""
+def assemble(name, footage=None, image=None, ambient=None, use_ambient=True,
+             force=False, dry_run=False):
+    """Ensambla el video del cuento. Devuelve la ruta del mp4 final.
+
+    Fondo: --footage (clip propio) o --image (una imagen fija que se anima con
+    mar en movimiento, del tamaño de la narración).
+    """
     check_ffmpeg()
     config.ensure_dirs()
 
     narration = _resolve(Path(name).with_suffix(".mp3") if Path(name).suffix == "" else name,
                          config.NARRATION_DIR, (".mp3",))
     dur = get_duration(narration)
-    footage = _resolve(footage, config.FOOTAGE_DIR, (".mp4", ".mov", ".mkv"))
+
+    use_image = bool(image and not footage)
+    img = None
+    if use_image:
+        img = Path(image)
+        if not img.exists():
+            img = config.IMAGES_DIR / Path(image).name
+        if not img.exists():
+            raise FileNotFoundError(f"No existe la imagen: {image}")
+    else:
+        footage = _resolve(footage, config.FOOTAGE_DIR, (".mp4", ".mov", ".mkv"))
 
     amb = None
     if use_ambient:
@@ -80,13 +95,24 @@ def assemble(name, footage, ambient=None, use_ambient=True, force=False, dry_run
     out = config.VIDEO_FINAL_DIR / f"{narration.stem}.mp4"
 
     if dry_run:
-        log.info("[dry-run] narración=%s (%.1fs) footage=%s ambiente=%s -> %s",
-                 narration.name, dur, footage.name, amb.name if amb else "no", out)
+        fondo = img.name if use_image else footage.name
+        log.info("[dry-run] narración=%s (%.1fs) fondo=%s ambiente=%s -> %s",
+                 narration.name, dur, fondo, amb.name if amb else "no", out)
         return out
 
     if out.exists() and not force and abs(get_duration(out) - dur) <= 2:
         log.info("Ya existe y coincide: %s (usa --force)", out)
         return out
+
+    # Construye el fondo de mar en movimiento a partir de la imagen (solo aquí,
+    # no en dry-run), del tamaño de la narración.
+    if use_image:
+        from scripts import sleep_visual  # import perezoso
+        base = config.CACHE_DIR / f"story_bg_{img.stem}_{int(dur)+2}s.mp4"
+        if force or not base.exists():
+            sleep_visual.build_from_image(img, base, duration=int(dur) + 2,
+                                          logger=log, cache_dir=config.CACHE_DIR)
+        footage = base
 
     scale = (f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
              f"crop={w}:{h},fps={fps}[v]")
@@ -114,14 +140,17 @@ def assemble(name, footage, ambient=None, use_ambient=True, force=False, dry_run
 def main():
     ap = argparse.ArgumentParser(description="Ensambla video de cuento (narración+footage+ambiente).")
     ap.add_argument("name", help="Nombre base de la narración (audio/narration/)")
-    ap.add_argument("--footage", required=True, help="Clip de fondo (assets/footage/)")
+    ap.add_argument("--footage", default=None, help="Clip de fondo (assets/footage/)")
+    ap.add_argument("--image", default=None, help="Imagen de fondo (mar en movimiento)")
     ap.add_argument("--ambient", default=None, help="Audio ambiental (por defecto el del mar)")
     ap.add_argument("--no-ambient", action="store_true", help="No mezclar ambiente")
     ap.add_argument("--force", action="store_true", help="Regenera aunque exista")
     ap.add_argument("--dry-run", action="store_true", help="Muestra sin generar")
     args = ap.parse_args()
+    if not args.footage and not args.image:
+        ap.error("Indica --footage o --image")
     try:
-        assemble(args.name, footage=args.footage, ambient=args.ambient,
+        assemble(args.name, footage=args.footage, image=args.image, ambient=args.ambient,
                  use_ambient=not args.no_ambient, force=args.force, dry_run=args.dry_run)
     except Exception as exc:  # noqa: BLE001
         log.error("ERROR: %s", exc)

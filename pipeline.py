@@ -98,7 +98,8 @@ def cmd_story(args):
     # 2) Plan de escenas
     generate_scene_plan.generate_scene_plan(story_path, force=args.force, dry_run=args.dry_run)
     # 3) Video
-    video = assemble_video.assemble(slug, footage=args.footage, ambient=args.ambient,
+    video = assemble_video.assemble(slug, footage=args.footage, image=args.image,
+                                    ambient=args.ambient,
                                     use_ambient=not args.no_ambient,
                                     force=args.force, dry_run=args.dry_run)
     # 4) Miniatura
@@ -229,7 +230,8 @@ def build_parser():
 
     s = sub.add_parser("story", help="Cuento narrado completo")
     s.add_argument("input", help="Archivo del cuento (content/stories/)")
-    s.add_argument("--footage", required=True, help="Clip de fondo (assets/footage/)")
+    s.add_argument("--footage", default=None, help="Clip de fondo (assets/footage/)")
+    s.add_argument("--image", default=None, help="Imagen de fondo (mar en movimiento)")
     s.add_argument("--ambient", default=None)
     s.add_argument("--no-ambient", action="store_true")
     s.add_argument("--voice-id", default=None)
