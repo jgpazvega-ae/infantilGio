@@ -230,7 +230,8 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
             raise FileNotFoundError(f"No existe la imagen: {image}")
         base_clip = config.CACHE_DIR / f"img_{img.stem}_base.mp4"
         if force or not base_clip.exists():
-            sleep_visual.build_from_image(img, base_clip, duration=BASE_CLIP_SECONDS, logger=log)
+            sleep_visual.build_from_image(img, base_clip, duration=BASE_CLIP_SECONDS,
+                                          logger=log, cache_dir=config.CACHE_DIR)
     else:
         base_clip = config.CACHE_DIR / f"{preset}_base.mp4"
         if force or not base_clip.exists():

@@ -66,12 +66,19 @@ def _make_moon_png(dst, size=280):
 
 
 def build_from_image(image, out, duration=30, size=None, fps=None,
-                     zoom_amp=0.035, logger=None):
+                     motion="water", zoom_amp=0.035, horizon=0.45,
+                     logger=None, cache_dir=None):
     """
-    Crea un clip base a partir de una imagen fija con MOVIMIENTO MÍNIMO e
-    hipnótico: un zoom sinusoidal muy lento (la escena "respira") que vuelve a
-    su punto de partida, de modo que el loop es imperceptible. Ideal para una
-    foto de mar nocturno. Devuelve out.
+    Crea un clip base a partir de una imagen fija con MOVIMIENTO MÍNIMO.
+
+    motion="water" (por defecto): el cielo y la luna quedan QUIETOS y solo la
+      zona del mar ondula/brilla, mediante un desplazamiento de agua sutil
+      (filtro displace con mapas animados), enmascarado por debajo del
+      horizonte. Da sensación de mar vivo sin animación agresiva.
+    motion="zoom": un zoom sinusoidal muy lento (la escena entera "respira").
+
+    `horizon` es la fracción de altura donde empieza el mar (0=arriba, 1=abajo).
+    Devuelve out.
     """
     check_ffmpeg()
     logger = logger or log
@@ -79,21 +86,48 @@ def build_from_image(image, out, duration=30, size=None, fps=None,
     w = size[0] if size else vp.get("width", 1920)
     h = size[1] if size else vp.get("height", 1080)
     fps = fps or vp.get("fps", 30)
-    frames = max(1, int(round(duration * fps)))
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    # Lienzo con margen (1.2x) para que el zoom nunca muestre bordes.
-    cw, ch = int(w * 1.2), int(h * 1.2)
-    vf = (
-        f"scale={cw}:{ch}:force_original_aspect_ratio=increase,"
-        f"crop={cw}:{ch},"
-        f"zoompan=z='1.06+{zoom_amp}*sin(on*2*PI/{frames})':"
-        f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={fps},"
-        f"format=yuv420p"
+    if motion == "zoom":
+        frames = max(1, int(round(duration * fps)))
+        cw, ch = int(w * 1.2), int(h * 1.2)
+        vf = (
+            f"scale={cw}:{ch}:force_original_aspect_ratio=increase,crop={cw}:{ch},"
+            f"zoompan=z='1.06+{zoom_amp}*sin(on*2*PI/{frames})':"
+            f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={fps},"
+            f"format=yuv420p"
+        )
+        run_ffmpeg([
+            "-loop", "1", "-i", str(image), "-vf", vf, "-t", str(duration),
+            "-r", str(fps), "-c:v", "libx264", "-preset", "medium",
+            "-pix_fmt", "yuv420p", "-g", str(fps * 2), out,
+        ], logger=logger)
+        return out
+
+    # --- motion == "water": desplazamiento de agua bajo el horizonte ---
+    y0 = int(h * horizon)          # inicio del mar
+    span = max(1, h - y0)          # alto de la zona de mar
+    mask = f"clip((Y-{y0})/{span}\\,0\\,1)"   # 0 en el cielo, 1 abajo
+    # Mapas de desplazamiento animados (128 = sin desplazar; ±px suave).
+    xexpr = (f"128 + 9*sin(Y/10 + T*1.2)*{mask} + 5*sin(X/48 + T*0.7)*{mask}")
+    yexpr = (f"128 + 6*sin(X/18 - T*1.0)*{mask}")
+    graph = (
+        f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
+        f"crop={w}:{h},format=rgb24[bg];\n"
+        f"color=c=black:s={w}x{h}:r={fps},"
+        f"geq=lum='{xexpr}':cb=128:cr=128,format=gray[xm];\n"
+        f"color=c=black:s={w}x{h}:r={fps},"
+        f"geq=lum='{yexpr}':cb=128:cr=128,format=gray[ym];\n"
+        f"[bg][xm][ym]displace=edge=smear,format=yuv420p[v]"
     )
+    cache_dir = Path(cache_dir) if cache_dir else out.parent
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    script = cache_dir / f"_water_{out.stem}.txt"
+    script.write_text(graph, encoding="utf-8")
     run_ffmpeg([
-        "-loop", "1", "-i", str(image), "-vf", vf, "-t", str(duration),
+        "-loop", "1", "-t", str(duration), "-i", str(image),
+        "-filter_complex_script", str(script), "-map", "[v]",
         "-r", str(fps), "-c:v", "libx264", "-preset", "medium",
         "-pix_fmt", "yuv420p", "-g", str(fps * 2), out,
     ], logger=logger)
