@@ -54,10 +54,17 @@ def ensure_dirs():
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
 # voice_id de la voz narradora. Se puede sobrescribir con la variable de
-# entorno ELEVENLABS_VOICE_ID. Por defecto usamos "Rachel", una voz cálida
-# y clara. Sustitúyelo por el voice_id de la voz que prefieras desde
-# https://elevenlabs.io/app/voice-library
-DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+# entorno ELEVENLABS_VOICE_ID. Por defecto usamos "Sofia - Captivating
+# Narration": voz femenina española, cálida, suave y dulce, ideal para
+# narración de cuentos antes de dormir.
+#
+# Alternativas cálidas/suaves en español (cambia DEFAULT_VOICE_ID por una):
+#   - Sofia  (femenina, dulce, storytelling) : pN4aFdNIp2mvGfTwy1Oj  [por defecto]
+#   - Alma   (femenina, envolvente, wellness) : 8gK5gnQBZnJWm1ta8R8X
+#   - Mario C. (masculina, calmada y sabia)   : crXOIS13NaTVLeuWd3Dp
+#   - Andre  (masculina, pausada, envolvente) : K7vlllngMGapgRQRDsqK
+# Explora más en https://elevenlabs.io/app/voice-library
+DEFAULT_VOICE_ID = "pN4aFdNIp2mvGfTwy1Oj"  # Sofia - Captivating Narration
 VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_VOICE_ID)
 
 # Modelo de TTS. "eleven_multilingual_v2" soporta español con buena calidad.
