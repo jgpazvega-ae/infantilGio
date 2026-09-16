@@ -129,8 +129,8 @@ def _dark_thumbnail(dst, title, subtitle="", size=(1280, 720)):
 
 
 def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=None,
-                       footage=None, title=None, normalize=True, clean_profile="ocean",
-                       force=False, dry_run=False):
+                       footage=None, image=None, title=None, normalize=True,
+                       clean_profile="ocean", force=False, dry_run=False):
     check_ffmpeg()
     config.ensure_dirs()
     t0 = time.time()
@@ -218,9 +218,19 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
     if force or not seamless_audio.exists():
         build_seamless_audio(src_for_loop, seamless_audio, min(xfade, max(1, a_dur / 3)), logger=log)
 
-    # 5) Visual base (footage propio o procedural).
+    # 5) Visual base. Prioridad: footage propio > imagen fija (con micro-
+    #    movimiento) > visual procedural.
     if footage:
         _, base_clip = generate_visuals.resolve_visual_source(footage=footage)
+    elif image:
+        img = Path(image)
+        if not img.exists():
+            img = config.IMAGES_DIR / Path(image).name
+        if not img.exists():
+            raise FileNotFoundError(f"No existe la imagen: {image}")
+        base_clip = config.CACHE_DIR / f"img_{img.stem}_base.mp4"
+        if force or not base_clip.exists():
+            sleep_visual.build_from_image(img, base_clip, duration=BASE_CLIP_SECONDS, logger=log)
     else:
         base_clip = config.CACHE_DIR / f"{preset}_base.mp4"
         if force or not base_clip.exists():
@@ -300,6 +310,7 @@ def main():
     ap.add_argument("--preset", default="ocean_night", help="ocean_night|black_screen|ocean_bubbles")
     ap.add_argument("--output", default=None, help="Ruta del MP4 de salida")
     ap.add_argument("--footage", default=None, help="Usar clip propio en vez del visual procedural")
+    ap.add_argument("--image", default=None, help="Usar una imagen fija (con micro-movimiento)")
     ap.add_argument("--title", default=None)
     ap.add_argument("--no-normalize", action="store_true", help="No normalizar el audio")
     ap.add_argument("--clean-profile", default="ocean",
@@ -310,8 +321,9 @@ def main():
     args = ap.parse_args()
     try:
         create_sleep_video(audio=args.audio, duration=args.duration, preset=args.preset,
-                           output=args.output, footage=args.footage, title=args.title,
-                           normalize=not args.no_normalize, clean_profile=args.clean_profile,
+                           output=args.output, footage=args.footage, image=args.image,
+                           title=args.title, normalize=not args.no_normalize,
+                           clean_profile=args.clean_profile,
                            force=args.force, dry_run=args.dry_run)
     except SystemExit:
         raise

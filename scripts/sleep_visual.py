@@ -65,6 +65,41 @@ def _make_moon_png(dst, size=280):
     return dst
 
 
+def build_from_image(image, out, duration=30, size=None, fps=None,
+                     zoom_amp=0.035, logger=None):
+    """
+    Crea un clip base a partir de una imagen fija con MOVIMIENTO MÍNIMO e
+    hipnótico: un zoom sinusoidal muy lento (la escena "respira") que vuelve a
+    su punto de partida, de modo que el loop es imperceptible. Ideal para una
+    foto de mar nocturno. Devuelve out.
+    """
+    check_ffmpeg()
+    logger = logger or log
+    vp = config.video_preset()
+    w = size[0] if size else vp.get("width", 1920)
+    h = size[1] if size else vp.get("height", 1080)
+    fps = fps or vp.get("fps", 30)
+    frames = max(1, int(round(duration * fps)))
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    # Lienzo con margen (1.2x) para que el zoom nunca muestre bordes.
+    cw, ch = int(w * 1.2), int(h * 1.2)
+    vf = (
+        f"scale={cw}:{ch}:force_original_aspect_ratio=increase,"
+        f"crop={cw}:{ch},"
+        f"zoompan=z='1.06+{zoom_amp}*sin(on*2*PI/{frames})':"
+        f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={w}x{h}:fps={fps},"
+        f"format=yuv420p"
+    )
+    run_ffmpeg([
+        "-loop", "1", "-i", str(image), "-vf", vf, "-t", str(duration),
+        "-r", str(fps), "-c:v", "libx264", "-preset", "medium",
+        "-pix_fmt", "yuv420p", "-g", str(fps * 2), out,
+    ], logger=logger)
+    return out
+
+
 def generate_visual(preset_name, out, duration=30, size=None, fps=None,
                     logger=None):
     """Genera el clip base procedural del preset. Devuelve la ruta out."""
