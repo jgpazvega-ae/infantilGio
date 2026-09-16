@@ -5,8 +5,9 @@
 # El voice_id se puede sobrescribir con la variable de entorno
 # ELEVENLABS_VOICE_ID (tiene prioridad sobre 'narrator.voice_id').
 
-# Modelo de TTS. eleven_multilingual_v2 soporta español con buena calidad.
-model_id: eleven_multilingual_v2
+# Modelo de TTS. eleven_v3 es el más expresivo y natural (menos "IA"),
+# y admite etiquetas de dirección de audio en el texto (p. ej. [softly]).
+model_id: eleven_v3
 output_format: mp3_44100_128   # 44.1 kHz, 128 kbps
 # Límite de caracteres por petición (troceo de textos largos).
 max_chars_per_request: 2500
@@ -16,13 +17,14 @@ narrator:
   # narración lenta y envolvente, tierna para cuentos antes de dormir.
   voice_id: KK9axBTGPbfqW7PU48BE
   language: es-MX
-  # Ajustes más calmados y tiernos (mayor estabilidad, ritmo pausado).
+  # Ajustes NATURALES (menos "IA"): estabilidad media (más expresión y
+  # variación humana), algo de estilo, y velocidad natural (no arrastrada).
   settings:
-    stability: 0.85
+    stability: 0.50
     similarity_boost: 0.80
-    style: 0.0
+    style: 0.35
     use_speaker_boost: true
-    speed: 0.90
+    speed: 0.97
 
 # Voces alternativas calmadas/tiernas en ESPAÑOL MEXICANO (es-MX):
 #   EsmeSu   (femenina, suave, lenta)     : KK9axBTGPbfqW7PU48BE  [por defecto]

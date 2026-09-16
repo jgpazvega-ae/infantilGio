@@ -84,8 +84,11 @@ de YouTube solo hacen falta en la Fase 10 (subida).
 ### 2.4 ElevenLabs
 
 La voz del narrador se configura en `config/voices.yaml` (`narrator.voice_id`).
-Por defecto: **Sofia** (femenina, cálida y suave). Alternativas comentadas en
-ese archivo. Ajustes orientados a narración infantil clara y tranquila.
+Por defecto: **EsmeSu** (femenina, es-MX, cálida y tierna) con el modelo
+**`eleven_v3`** y ajustes naturales (estabilidad media, algo de estilo,
+velocidad natural) para que la narración suene humana y no "IA". El texto
+admite etiquetas de dirección de audio de v3 (p. ej. `[softly]`) y pausas con
+`...` para que respire. Alternativas comentadas en `config/voices.yaml`.
 
 **Dos formas de obtener la narración:**
 
