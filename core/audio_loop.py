@@ -49,6 +49,37 @@ def build_audio_filter(source_sample_rate=None, clean=True):
     return "adeclip,highpass=f=25,loudnorm=I=-16:TP=-1.5:LRA=11"
 
 
+def build_ocean_filter(cfg):
+    """
+    Construye la cadena de limpieza "ocean" a partir de la config
+    (presets.audio_cleanup.ocean): de-click, notch de tonos/silbidos que no son
+    mar, HPF/LPF, realce de cuerpo y espuma de las olas, normalización de
+    volumen y limitador. Resalta el mar y elimina lo que no lo es.
+    """
+    cfg = cfg or {}
+    partes = []
+    if cfg.get("declick", True):
+        partes.append("adeclick")
+    if cfg.get("highpass_hz"):
+        partes.append(f"highpass=f={cfg['highpass_hz']}")
+    for i, hz in enumerate(cfg.get("notches_hz", []) or []):
+        # Notch profundo y estrecho para el tono, un poco más ancho el primero.
+        w = 320 if i == 0 else 180
+        g = -32 if i == 0 else -16
+        partes.append(f"equalizer=f={hz}:width_type=h:width={w}:g={g}")
+    if cfg.get("denoise", 0):
+        partes.append(f"afftdn=nr={cfg['denoise']}:nf=-40")
+    if cfg.get("lowpass_hz"):
+        partes.append(f"lowpass=f={cfg['lowpass_hz']}")
+    if cfg.get("body_gain_db"):
+        partes.append(f"equalizer=f=260:width_type=o:width=1.2:g={cfg['body_gain_db']}")
+    if cfg.get("air_gain_db"):
+        partes.append(f"equalizer=f=4200:width_type=o:width=1.6:g={cfg['air_gain_db']}")
+    partes.append(f"loudnorm=I={cfg.get('loudnorm_i', -15)}:TP=-1.5:LRA=11")
+    partes.append("alimiter=limit=0.891")  # techo ~ -1 dBFS
+    return ",".join(partes)
+
+
 def normalize_audio(src, dst, af=None, source_sample_rate=None, clean=True,
                     sample_rate=44100, channels=2, logger=None):
     """

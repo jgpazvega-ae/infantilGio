@@ -17,6 +17,23 @@ audio:
   narration_volume: 1.0   # narración al 100%
   ambient_volume: 0.18    # ambiente al ~18% (rango recomendado 15-20%)
 
+# Perfiles de limpieza de audio.
+audio_cleanup:
+  # Perfil "ocean": resalta el mar y elimina lo que no es mar.
+  # Cadena verificada con espectrograma sobre la grabación aportada:
+  # de-click, notch del silbido tonal, HPF/LPF, realce de cuerpo/espuma,
+  # normalización de volumen y limitador. denoise=0 conserva la textura del
+  # mar (recomendado); súbelo (p. ej. 10) para un fondo más silencioso.
+  ocean:
+    declick: true
+    notches_hz: [1900, 1600]   # tonos/silbidos a eliminar (no son mar)
+    highpass_hz: 40
+    lowpass_hz: 7500
+    denoise: 0                 # dB de reducción de ruido (0 = desactivado)
+    body_gain_db: 3            # realce del cuerpo de las olas (~260 Hz)
+    air_gain_db: 2             # realce de la espuma/aire (~4.2 kHz)
+    loudnorm_i: -15            # loudness objetivo (LUFS)
+
 # Loops (dormir/relajación).
 loop:
   # Duración del crossfade (segundos) para loops suaves sin clicks.

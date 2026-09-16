@@ -28,7 +28,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config  # noqa: E402
-from core.audio_loop import build_seamless_audio, normalize_audio  # noqa: E402
+from core.audio_loop import (build_ocean_filter, build_seamless_audio,  # noqa: E402
+                             normalize_audio)
 from core.ffmpeg_utils import (check_ffmpeg, format_duration,  # noqa: E402
                                format_duration_compact, get_duration,
                                get_stream, parse_duration)
@@ -128,8 +129,8 @@ def _dark_thumbnail(dst, title, subtitle="", size=(1280, 720)):
 
 
 def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=None,
-                       footage=None, title=None, normalize=True, force=False,
-                       dry_run=False):
+                       footage=None, title=None, normalize=True, clean_profile="auto",
+                       force=False, dry_run=False):
     check_ffmpeg()
     config.ensure_dirs()
     t0 = time.time()
@@ -198,9 +199,15 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
     #    la única codificación con pérdida es el AAC final del video.
     src_for_loop = audio_path
     if normalize:
-        norm = config.CACHE_DIR / f"{audio_path.stem}_clean.wav"
+        # Perfil de limpieza: 'ocean' (resalta el mar) | 'auto' (adaptativo) | 'none'.
+        af = None
+        if clean_profile == "ocean":
+            af = build_ocean_filter(config.PRESETS.get("audio_cleanup", {}).get("ocean", {}))
+            log.info("Limpieza de audio: perfil 'ocean' (resalta el mar).")
+        norm = config.CACHE_DIR / f"{audio_path.stem}_{clean_profile}_clean.wav"
         if force or not norm.exists():
-            normalize_audio(audio_path, norm, source_sample_rate=sr, clean=True, logger=log)
+            normalize_audio(audio_path, norm, af=af, source_sample_rate=sr,
+                            clean=(clean_profile != "none"), logger=log)
         src_for_loop = norm
 
     xfade = int((config.PRESETS.get("sleep", {}).get(preset, {}) or {}).get("transition_duration", 8))
@@ -292,14 +299,17 @@ def main():
     ap.add_argument("--footage", default=None, help="Usar clip propio en vez del visual procedural")
     ap.add_argument("--title", default=None)
     ap.add_argument("--no-normalize", action="store_true", help="No normalizar el audio")
+    ap.add_argument("--clean-profile", default="auto",
+                    choices=["auto", "ocean", "none"],
+                    help="Perfil de limpieza de audio (ocean = resalta el mar)")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     try:
         create_sleep_video(audio=args.audio, duration=args.duration, preset=args.preset,
                            output=args.output, footage=args.footage, title=args.title,
-                           normalize=not args.no_normalize, force=args.force,
-                           dry_run=args.dry_run)
+                           normalize=not args.no_normalize, clean_profile=args.clean_profile,
+                           force=args.force, dry_run=args.dry_run)
     except SystemExit:
         raise
     except Exception as exc:  # noqa: BLE001
