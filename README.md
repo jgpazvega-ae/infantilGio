@@ -157,8 +157,13 @@ python scripts/create_sleep_video.py \
   crossfade del loop.
 - **Con footage propio:** añade `--footage assets/footage/mar.mp4` (se usa en
   lugar del visual procedural).
-- **Audio:** se normaliza (loudnorm, 44.1 kHz estéreo) sin destruir la dinámica
-  natural, y se loopea con crossfade para evitar clicks. El original no se toca.
+- **Audio:** por defecto usa la grabación del mar (`assets/ambient/mar_raw_16k.wav`)
+  con el perfil de limpieza **`ocean`** (resalta el mar y elimina lo que no lo
+  es: silbidos tonales, clicks; realza cuerpo y espuma; nivela el volumen). Se
+  loopea con crossfade y se normaliza sin destruir la dinámica natural. El
+  original nunca se modifica. Ajusta el perfil con `--clean-profile
+  {ocean,auto,none}` o edita `config/presets.yaml → audio_cleanup.ocean`.
+  Los videos de cuento también mezclan este mar limpio de fondo (~18%).
 - **Rendimiento:** el clip base se normaliza una sola vez; el video largo se
   genera con `stream-copy` (no se recodifican horas). Antes del render se
   **estima el espacio en disco** y se aborta si no cabe.

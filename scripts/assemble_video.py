@@ -17,11 +17,27 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config  # noqa: E402
+from core.audio_loop import build_ocean_filter, normalize_audio  # noqa: E402
 from core.ffmpeg_utils import (check_ffmpeg, get_duration,  # noqa: E402
                                run_ffmpeg)
 from core.logging_utils import get_logger  # noqa: E402
 
 log = get_logger("assemble_video")
+
+
+def _clean_sea(logger=None, force=False):
+    """
+    Devuelve un ambiente de mar LIMPIO (perfil 'ocean') a partir de la
+    grabación fuente, cacheado. Si no existe la fuente, devuelve None.
+    """
+    src = config.DEFAULT_SEA_AUDIO
+    if not src.exists():
+        return None
+    dst = config.CACHE_DIR / "sea_clean_ocean.wav"
+    if force or not dst.exists():
+        af = build_ocean_filter(config.PRESETS.get("audio_cleanup", {}).get("ocean", {}))
+        normalize_audio(src, dst, af=af, sample_rate=44100, channels=2, logger=logger)
+    return dst
 
 
 def _resolve(ref, folder, suffixes=(".mp4", ".mp3")):
@@ -46,10 +62,17 @@ def assemble(name, footage, ambient=None, use_ambient=True, force=False, dry_run
 
     amb = None
     if use_ambient:
-        try:
-            amb = _resolve(ambient or "ambient_mar.mp3", config.ASSETS_AMBIENT_DIR, (".mp3",))
-        except FileNotFoundError:
-            log.warning("Sin ambiente disponible; se omite el fondo.")
+        if ambient:
+            # Ambiente explícito: se usa tal cual.
+            try:
+                amb = _resolve(ambient, config.ASSETS_AMBIENT_DIR, (".mp3", ".wav", ".flac"))
+            except FileNotFoundError:
+                log.warning("No se encontró el ambiente indicado; se omite el fondo.")
+        else:
+            # Por defecto: mar LIMPIO (perfil 'ocean').
+            amb = _clean_sea(logger=log, force=force)
+            if amb is None:
+                log.warning("Sin grabación del mar; se omite el fondo.")
 
     vp = config.video_preset()
     ap = config.audio_preset()

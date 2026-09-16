@@ -56,6 +56,10 @@ PACKAGES_DIR = OUTPUT_DIR / "packages"
 LOGS_DIR = BASE_DIR / "logs"
 CACHE_DIR = BASE_DIR / "cache"
 
+# Grabación del mar (fuente de verdad). Se limpia con el perfil "ocean" en el
+# pipeline; no se versiona una copia procesada aparte.
+DEFAULT_SEA_AUDIO = ASSETS_AMBIENT_DIR / "mar_raw_16k.wav"
+
 _ALL_DIRS = [
     IDEAS_DIR, STORIES_DIR, SCRIPTS_CONTENT_DIR, SCENE_PLANS_DIR, METADATA_DIR,
     FOOTAGE_DIR, MUSIC_DIR, ASSETS_AMBIENT_DIR, IMAGES_DIR,

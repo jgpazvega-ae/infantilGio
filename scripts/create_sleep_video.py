@@ -129,7 +129,7 @@ def _dark_thumbnail(dst, title, subtitle="", size=(1280, 720)):
 
 
 def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=None,
-                       footage=None, title=None, normalize=True, clean_profile="auto",
+                       footage=None, title=None, normalize=True, clean_profile="ocean",
                        force=False, dry_run=False):
     check_ffmpeg()
     config.ensure_dirs()
@@ -137,6 +137,9 @@ def create_sleep_video(audio=None, duration=None, preset="ocean_night", output=N
 
     target = parse_duration(duration or config.loop_preset().get("default_duration", "05:55:00"))
     tag = format_duration_compact(target)
+    # Por defecto usa la grabación del mar (se limpia con el perfil 'ocean').
+    if audio is None and config.DEFAULT_SEA_AUDIO.exists():
+        audio = config.DEFAULT_SEA_AUDIO
     audio_path = _locate_audio(audio).resolve()
 
     # 1) Probe del audio (verifica que sea reproducible / no corrupto).
@@ -299,9 +302,9 @@ def main():
     ap.add_argument("--footage", default=None, help="Usar clip propio en vez del visual procedural")
     ap.add_argument("--title", default=None)
     ap.add_argument("--no-normalize", action="store_true", help="No normalizar el audio")
-    ap.add_argument("--clean-profile", default="auto",
+    ap.add_argument("--clean-profile", default="ocean",
                     choices=["auto", "ocean", "none"],
-                    help="Perfil de limpieza de audio (ocean = resalta el mar)")
+                    help="Perfil de limpieza de audio (ocean = resalta el mar, por defecto)")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
