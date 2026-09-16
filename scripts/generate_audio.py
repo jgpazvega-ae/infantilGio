@@ -1,189 +1,137 @@
 """
-Fase 2 — Generación de narración con ElevenLabs.
+generate_audio.py — Narración con ElevenLabs (Fase 2).
 
-Toma un cuento en texto (.txt) de la carpeta stories/, lo convierte a voz
-con ElevenLabs usando el voice_id configurado en config.py, y guarda el
-resultado como .mp3 en audio/narration/ con el mismo nombre base.
+Lee un cuento (.txt / .md, con o sin front-matter), genera la narración con
+ElevenLabs y la guarda en audio/narration/<slug>.mp3.
+
+- Valida API key y voice_id (sin exponer la clave).
+- Trocea textos largos y concatena los fragmentos.
+- No regenera si el audio ya existe y es válido (usa --force para forzar).
+- Registra duración y errores en logs/.
 
 Uso:
-    python scripts/generate_audio.py stories/mi_cuento.txt
-    python scripts/generate_audio.py mi_cuento          # busca en stories/
-    python scripts/generate_audio.py mi_cuento --voice-id <VOICE_ID>
-
-Los textos largos se dividen automáticamente en fragmentos para respetar el
-límite de caracteres de la API; los fragmentos se concatenan en un único mp3.
+    python scripts/generate_audio.py content/stories/andre.txt
+    python scripts/generate_audio.py andre --force --voice-id XXXX
 """
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
-# Permite ejecutar el script directamente (python scripts/generate_audio.py)
-# añadiendo la raíz del proyecto al path para importar config.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config  # noqa: E402
+from core.chunking import split_text  # noqa: E402
+from core.ffmpeg_utils import get_duration  # noqa: E402
+from core.logging_utils import get_logger  # noqa: E402
+from core.paths import slugify  # noqa: E402
+from core.story import parse_story_file  # noqa: E402
+
+log = get_logger("generate_audio")
 
 
-def dividir_en_fragmentos(texto, max_chars):
-    """
-    Divide el texto en fragmentos de como máximo `max_chars` caracteres,
-    intentando cortar en límites naturales (párrafos y frases) para no partir
-    palabras ni frases a la mitad.
-    """
-    texto = texto.strip()
-    if len(texto) <= max_chars:
-        return [texto]
-
-    # Primero por párrafos, luego por frases si un párrafo es muy largo.
-    unidades = re.split(r"\n\s*\n", texto)
-    fragmentos = []
-    actual = ""
-
-    def emitir():
-        nonlocal actual
-        if actual.strip():
-            fragmentos.append(actual.strip())
-        actual = ""
-
-    for unidad in unidades:
-        unidad = unidad.strip()
-        if not unidad:
-            continue
-        # Si la unidad por sí sola supera el límite, la partimos por frases.
-        if len(unidad) > max_chars:
-            frases = re.split(r"(?<=[.!?…])\s+", unidad)
-            for frase in frases:
-                if len(actual) + len(frase) + 1 > max_chars:
-                    emitir()
-                # Frase individual descomunal: cortar en seco por longitud.
-                while len(frase) > max_chars:
-                    fragmentos.append(frase[:max_chars])
-                    frase = frase[max_chars:]
-                actual = (actual + " " + frase).strip() if actual else frase
-        else:
-            if len(actual) + len(unidad) + 2 > max_chars:
-                emitir()
-            actual = (actual + "\n\n" + unidad).strip() if actual else unidad
-
-    emitir()
-    return fragmentos
+def _resolve_story(ref):
+    """Acepta ruta completa o nombre dentro de content/stories/."""
+    ref = Path(ref)
+    if ref.exists():
+        return ref
+    for cand in (config.STORIES_DIR / ref.name,
+                 (config.STORIES_DIR / ref.name).with_suffix(".txt"),
+                 (config.STORIES_DIR / ref.name).with_suffix(".md")):
+        if cand.exists():
+            return cand
+    raise FileNotFoundError(f"No se encontró el cuento: {ref}")
 
 
-def _construir_voice_settings():
-    """
-    Construye el objeto VoiceSettings del SDK a partir de config.VOICE_SETTINGS,
-    ignorando de forma segura los campos que la versión instalada no soporte
-    (por ejemplo `speed` en versiones antiguas).
-    """
-    from elevenlabs import VoiceSettings
+def _voice_settings():
+    return (config.VOICES.get("narrator", {}) or {}).get("settings", {})
 
-    campos = dict(config.VOICE_SETTINGS)
+
+def _is_valid_audio(path):
     try:
-        return VoiceSettings(**campos)
-    except TypeError:
-        # Reintenta sin las claves no soportadas por esta versión del SDK.
-        campos.pop("speed", None)
-        campos.pop("use_speaker_boost", None)
-        campos.pop("style", None)
-        return VoiceSettings(**campos)
+        return path.exists() and get_duration(path) > 0
+    except Exception:  # noqa: BLE001
+        return False
 
 
-def generar_audio(ruta_txt, voice_id=None):
-    """
-    Genera el mp3 de narración para un archivo de texto dado.
+def generate_audio(story_ref, voice_id=None, force=False, dry_run=False):
+    """Genera la narración. Devuelve la ruta del mp3 (o la esperada en dry-run)."""
+    ruta = _resolve_story(story_ref)
+    meta = parse_story_file(ruta)
+    texto = meta["story"]
+    if not texto.strip():
+        raise ValueError(f"El cuento {ruta} no tiene texto.")
 
-    Devuelve la ruta del mp3 generado. Lanza excepciones claras si falta la
-    API key, el archivo de texto o si la API falla.
-    """
-    # 1. Validar credenciales
+    config.ensure_dirs()
+    slug = slugify(meta["title"]) if meta.get("title") else slugify(ruta.stem)
+    destino = config.NARRATION_DIR / f"{slug}.mp3"
+
+    max_chars = config.VOICES.get("max_chars_per_request", 2500)
+    fragmentos = split_text(texto, max_chars)
+
+    if dry_run:
+        log.info("[dry-run] Generaría %s (%d fragmentos, %d caracteres) -> %s",
+                 ruta.name, len(fragmentos), len(texto), destino)
+        return destino
+
+    # Checkpoint: si la narración ya existe y es válida, NO se regenera (ni se
+    # requiere API key). Así se puede rehacer solo una etapa posterior.
+    if destino.exists() and _is_valid_audio(destino) and not force:
+        log.info("Ya existe y es válido: %s (usa --force para regenerar)", destino)
+        return destino
+
+    # A partir de aquí sí hace falta llamar a ElevenLabs.
     if not config.ELEVENLABS_API_KEY:
         raise RuntimeError(
-            "Falta ELEVENLABS_API_KEY. Copia .env.example a .env y añade tu "
-            "clave de API de ElevenLabs."
+            "Falta ELEVENLABS_API_KEY. Copia .env.example a .env y añade tu clave."
         )
+    voice_id = voice_id or config.NARRATOR_VOICE_ID
+    if not voice_id:
+        raise RuntimeError("No hay voice_id (define narrator.voice_id o ELEVENLABS_VOICE_ID).")
 
-    # 2. Resolver la ruta del texto (acepta ruta completa o solo el nombre)
-    ruta_txt = Path(ruta_txt)
-    if not ruta_txt.exists():
-        candidato = config.STORIES_DIR / ruta_txt.name
-        if candidato.suffix == "":
-            candidato = candidato.with_suffix(".txt")
-        if candidato.exists():
-            ruta_txt = candidato
-        else:
-            raise FileNotFoundError(
-                f"No se encontró el cuento: {ruta_txt} (ni en {config.STORIES_DIR})"
-            )
-
-    texto = ruta_txt.read_text(encoding="utf-8").strip()
-    if not texto:
-        raise ValueError(f"El archivo {ruta_txt} está vacío.")
-
-    voice_id = voice_id or config.VOICE_ID
-
-    # 3. Preparar cliente y ajustes
-    from elevenlabs.client import ElevenLabs
-
+    from elevenlabs.client import ElevenLabs  # import perezoso
     cliente = ElevenLabs(api_key=config.ELEVENLABS_API_KEY)
-    voice_settings = _construir_voice_settings()
+    settings = _voice_settings()
+    model_id = config.VOICES.get("model_id", "eleven_multilingual_v2")
+    out_fmt = config.VOICES.get("output_format", "mp3_44100_128")
 
-    fragmentos = dividir_en_fragmentos(texto, config.TTS_MAX_CHARS)
-    print(
-        f"Cuento: {ruta_txt.name} | {len(texto)} caracteres | "
-        f"{len(fragmentos)} fragmento(s) | voz: {voice_id}"
-    )
+    log.info("Narración: %s | %d caracteres | %d fragmento(s) | voz=%s",
+             ruta.name, len(texto), len(fragmentos), voice_id)
 
-    # 4. Convertir cada fragmento y acumular los bytes de audio
-    partes_audio = []
-    for i, fragmento in enumerate(fragmentos, start=1):
-        print(f"  → Generando fragmento {i}/{len(fragmentos)} "
-              f"({len(fragmento)} caracteres)...")
+    partes = []
+    for i, frag in enumerate(fragmentos, start=1):
+        log.info("Fragmento %d/%d (%d caracteres)...", i, len(fragmentos), len(frag))
         try:
-            audio_stream = cliente.text_to_speech.convert(
-                voice_id=voice_id,
-                model_id=config.TTS_MODEL_ID,
-                output_format=config.TTS_OUTPUT_FORMAT,
-                text=fragmento,
-                voice_settings=voice_settings,
+            stream = cliente.text_to_speech.convert(
+                voice_id=voice_id, model_id=model_id, output_format=out_fmt,
+                text=frag, voice_settings=settings or None,
             )
-            partes_audio.append(b"".join(audio_stream))
-        except Exception as exc:  # noqa: BLE001 - queremos un mensaje claro
-            raise RuntimeError(
-                f"Error al generar el fragmento {i} con ElevenLabs: {exc}"
-            ) from exc
+            partes.append(b"".join(stream))
+        except Exception as exc:  # noqa: BLE001
+            log.error("Fallo en fragmento %d: %s", i, exc)
+            raise RuntimeError(f"Error de ElevenLabs en el fragmento {i}: {exc}") from exc
 
-    # 5. Guardar el mp3 final (concatenación de fragmentos)
-    config.ensure_dirs()
-    destino = config.NARRATION_DIR / (ruta_txt.stem + ".mp3")
     with open(destino, "wb") as f:
-        for parte in partes_audio:
-            f.write(parte)
+        for p in partes:
+            f.write(p)
 
-    print(f"OK: narración guardada en {destino}")
+    dur = get_duration(destino)
+    log.info("OK narración -> %s | duración=%.1fs", destino, dur)
     return destino
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Genera narración mp3 con ElevenLabs a partir de un .txt"
-    )
-    parser.add_argument(
-        "texto",
-        help="Ruta al .txt (o nombre del cuento dentro de stories/)",
-    )
-    parser.add_argument(
-        "--voice-id",
-        default=None,
-        help="voice_id de ElevenLabs a usar (sobrescribe config.py)",
-    )
-    args = parser.parse_args()
-
+    ap = argparse.ArgumentParser(description="Genera narración con ElevenLabs.")
+    ap.add_argument("story", help="Ruta o nombre del cuento (content/stories/)")
+    ap.add_argument("--voice-id", default=None, help="voice_id (sobrescribe config)")
+    ap.add_argument("--force", action="store_true", help="Regenera aunque exista")
+    ap.add_argument("--dry-run", action="store_true", help="Muestra sin generar")
+    args = ap.parse_args()
     try:
-        generar_audio(args.texto, voice_id=args.voice_id)
+        generate_audio(args.story, voice_id=args.voice_id, force=args.force,
+                       dry_run=args.dry_run)
     except Exception as exc:  # noqa: BLE001
-        print(f"ERROR: {exc}", file=sys.stderr)
+        log.error("ERROR: %s", exc)
         sys.exit(1)
 
 

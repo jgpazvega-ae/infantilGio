@@ -1,24 +1,13 @@
 """
-Fase 4 — Ensamblado del video final.
+assemble_video.py — Ensamblado de video de cuento (Fase 4).
 
-Combina:
-  - Audio de narración (audio/narration/) al 100% de volumen.
-  - Un clip de footage, repetido automáticamente para cubrir la duración de
-    la narración.
-  - (Opcional) Audio ambiental de fondo a bajo volumen (15-20%).
-
-Exporta un mp4 1920x1080 a output/ con el mismo nombre base que el cuento.
+Combina narración (100%) + footage (en loop hasta cubrir la narración) +
+ambiente opcional (~18%). El video termina exactamente cuando termina la
+narración. Salida 1920x1080 en video/final/.
 
 Uso:
-    # Cuento narrado sobre el mar, con ambiente por defecto (audio del mar):
-    python scripts/assemble_video.py mi_cuento --footage footage/mar.mp4
-
-    # Sin ambiente de fondo:
-    python scripts/assemble_video.py mi_cuento --footage footage/mar.mp4 --no-ambient
-
-    # Con un ambiente concreto:
-    python scripts/assemble_video.py mi_cuento --footage footage/mar.mp4 \
-        --ambient audio/ambient/ambient_mar.mp3
+    python scripts/assemble_video.py andre --footage assets/footage/mar.mp4
+    python scripts/assemble_video.py andre --footage mar.mp4 --no-ambient
 """
 
 import argparse
@@ -28,131 +17,91 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config  # noqa: E402
-from scripts.utils import (  # noqa: E402
-    check_ffmpeg,
-    format_duration,
-    get_media_duration,
-    run_ffmpeg,
-)
+from core.ffmpeg_utils import (check_ffmpeg, get_duration,  # noqa: E402
+                               run_ffmpeg)
+from core.logging_utils import get_logger  # noqa: E402
+
+log = get_logger("assemble_video")
 
 
-def _resolver(ruta, carpeta, sufijo=None):
-    """Resuelve una ruta aceptando ruta completa o solo el nombre base."""
-    ruta = Path(ruta)
-    if ruta.exists():
-        return ruta
-    candidato = carpeta / ruta.name
-    if sufijo and candidato.suffix == "":
-        candidato = candidato.with_suffix(sufijo)
-    if candidato.exists():
-        return candidato
-    raise FileNotFoundError(f"No se encontró: {ruta} (ni en {carpeta})")
+def _resolve(ref, folder, suffixes=(".mp4", ".mp3")):
+    ref = Path(ref)
+    if ref.exists():
+        return ref
+    for cand in [folder / ref.name] + [(folder / ref.name).with_suffix(s) for s in suffixes]:
+        if cand.exists():
+            return cand
+    raise FileNotFoundError(f"No se encontró: {ref} (ni en {folder})")
 
 
-def ensamblar(nombre, footage, ambient=None, usar_ambient=True):
-    """
-    Ensambla el video final de un cuento.
-
-    Parámetros:
-      nombre   -> nombre base del cuento (busca audio/narration/<nombre>.mp3)
-      footage  -> ruta o nombre del clip de fondo
-      ambient  -> ruta del audio ambiental (por defecto, el del mar)
-      usar_ambient -> si es False, no mezcla ambiente
-
-    Devuelve la ruta del mp4 final.
-    """
+def assemble(name, footage, ambient=None, use_ambient=True, force=False, dry_run=False):
+    """Ensambla el video del cuento. Devuelve la ruta del mp4 final."""
     check_ffmpeg()
     config.ensure_dirs()
 
-    # 1. Localizar la narración
-    narracion = _resolver(
-        Path(nombre).with_suffix(".mp3") if Path(nombre).suffix == "" else nombre,
-        config.NARRATION_DIR,
-        ".mp3",
-    )
-    dur = get_media_duration(narracion)
-    print(f"Narración: {narracion.name} ({format_duration(dur)})")
+    narration = _resolve(Path(name).with_suffix(".mp3") if Path(name).suffix == "" else name,
+                         config.NARRATION_DIR, (".mp3",))
+    dur = get_duration(narration)
+    footage = _resolve(footage, config.FOOTAGE_DIR, (".mp4", ".mov", ".mkv"))
 
-    # 2. Localizar el footage
-    footage = _resolver(footage, config.FOOTAGE_DIR, ".mp4")
-    print(f"Footage: {footage.name}")
-
-    # 3. Localizar ambiente (opcional)
-    ruta_ambient = None
-    if usar_ambient:
-        origen = ambient or config.DEFAULT_AMBIENT_FILE
+    amb = None
+    if use_ambient:
         try:
-            ruta_ambient = _resolver(origen, config.AMBIENT_DIR, ".mp3")
-            print(f"Ambiente: {ruta_ambient.name} (volumen {config.AMBIENT_VOLUME})")
+            amb = _resolve(ambient or "ambient_mar.mp3", config.ASSETS_AMBIENT_DIR, (".mp3",))
         except FileNotFoundError:
-            print("Aviso: no se encontró audio ambiental; se omite el fondo.")
-            ruta_ambient = None
+            log.warning("Sin ambiente disponible; se omite el fondo.")
 
-    salida = config.OUTPUT_DIR / (narracion.stem + ".mp4")
+    vp = config.video_preset()
+    ap = config.audio_preset()
+    w, h, fps = vp.get("width", 1920), vp.get("height", 1080), vp.get("fps", 30)
+    out = config.VIDEO_FINAL_DIR / f"{narration.stem}.mp4"
 
-    # 4. Construir el comando de ffmpeg
-    entradas = [
-        "-stream_loop", "-1", "-i", str(footage),   # entrada 0: video (loop)
-        "-i", str(narracion),                        # entrada 1: narración
-    ]
-    if ruta_ambient is not None:
-        entradas += ["-stream_loop", "-1", "-i", str(ruta_ambient)]  # entrada 2
+    if dry_run:
+        log.info("[dry-run] narración=%s (%.1fs) footage=%s ambiente=%s -> %s",
+                 narration.name, dur, footage.name, amb.name if amb else "no", out)
+        return out
 
-    escala = (
-        f"[0:v]scale={config.VIDEO_WIDTH}:{config.VIDEO_HEIGHT}:"
-        f"force_original_aspect_ratio=increase,"
-        f"crop={config.VIDEO_WIDTH}:{config.VIDEO_HEIGHT},"
-        f"fps={config.VIDEO_FPS}[v]"
-    )
+    if out.exists() and not force and abs(get_duration(out) - dur) <= 2:
+        log.info("Ya existe y coincide: %s (usa --force)", out)
+        return out
 
-    if ruta_ambient is not None:
-        filtro = (
-            f"{escala};"
-            f"[1:a]volume={config.NARRATION_VOLUME}[narr];"
-            f"[2:a]volume={config.AMBIENT_VOLUME}[amb];"
-            f"[narr][amb]amix=inputs=2:duration=first:dropout_transition=0[a]"
-        )
+    scale = (f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
+             f"crop={w}:{h},fps={fps}[v]")
+    inputs = ["-stream_loop", "-1", "-i", footage, "-i", narration]
+    if amb is not None:
+        inputs += ["-stream_loop", "-1", "-i", amb]
+        filtro = (f"{scale};[1:a]volume={ap.get('narration_volume', 1.0)}[n];"
+                  f"[2:a]volume={ap.get('ambient_volume', 0.18)}[b];"
+                  f"[n][b]amix=inputs=2:duration=first:dropout_transition=0[a]")
     else:
-        filtro = f"{escala};[1:a]volume={config.NARRATION_VOLUME}[a]"
+        filtro = f"{scale};[1:a]volume={ap.get('narration_volume', 1.0)}[a]"
 
     run_ffmpeg([
-        *entradas,
-        "-filter_complex", filtro,
-        "-map", "[v]",
-        "-map", "[a]",
-        "-t", str(dur),          # recorta todo a la duración de la narración
-        "-c:v", "libx264",
-        "-preset", "medium",
-        "-pix_fmt", "yuv420p",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-shortest",
-        str(salida),
-    ])
+        *inputs, "-filter_complex", filtro, "-map", "[v]", "-map", "[a]",
+        "-t", f"{dur}", "-c:v", vp.get("video_codec", "libx264"),
+        "-preset", vp.get("preset", "medium"), "-pix_fmt", vp.get("pixel_format", "yuv420p"),
+        "-r", str(fps), "-c:a", vp.get("audio_codec", "aac"),
+        "-b:a", vp.get("audio_bitrate", "192k"), "-shortest", out,
+    ], logger=log)
 
-    print(f"OK: video final guardado en {salida}")
-    return salida
+    log.info("OK video -> %s | duración=%.1fs", out, get_duration(out))
+    return out
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Ensambla narración + footage + ambiente en un mp4 final."
-    )
-    parser.add_argument("nombre", help="Nombre base del cuento (narración en audio/narration/)")
-    parser.add_argument("--footage", required=True, help="Clip de fondo (ruta o nombre en footage/)")
-    parser.add_argument("--ambient", default=None, help="Audio ambiental (por defecto: el del mar)")
-    parser.add_argument("--no-ambient", action="store_true", help="No mezclar audio ambiental")
-    args = parser.parse_args()
-
+    ap = argparse.ArgumentParser(description="Ensambla video de cuento (narración+footage+ambiente).")
+    ap.add_argument("name", help="Nombre base de la narración (audio/narration/)")
+    ap.add_argument("--footage", required=True, help="Clip de fondo (assets/footage/)")
+    ap.add_argument("--ambient", default=None, help="Audio ambiental (por defecto el del mar)")
+    ap.add_argument("--no-ambient", action="store_true", help="No mezclar ambiente")
+    ap.add_argument("--force", action="store_true", help="Regenera aunque exista")
+    ap.add_argument("--dry-run", action="store_true", help="Muestra sin generar")
+    args = ap.parse_args()
     try:
-        ensamblar(
-            args.nombre,
-            footage=args.footage,
-            ambient=args.ambient,
-            usar_ambient=not args.no_ambient,
-        )
+        assemble(args.name, footage=args.footage, ambient=args.ambient,
+                 use_ambient=not args.no_ambient, force=args.force, dry_run=args.dry_run)
     except Exception as exc:  # noqa: BLE001
-        print(f"ERROR: {exc}", file=sys.stderr)
+        log.error("ERROR: %s", exc)
         sys.exit(1)
 
 

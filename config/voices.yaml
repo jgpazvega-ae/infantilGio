@@ -1,0 +1,38 @@
+# Configuración de voces de ElevenLabs.
+# El narrador es obligatorio; los personajes son opcionales (la arquitectura
+# los soporta aunque no se usen en la primera fase).
+#
+# El voice_id se puede sobrescribir con la variable de entorno
+# ELEVENLABS_VOICE_ID (tiene prioridad sobre 'narrator.voice_id').
+
+# Modelo de TTS. eleven_multilingual_v2 soporta español con buena calidad.
+model_id: eleven_multilingual_v2
+output_format: mp3_44100_128   # 44.1 kHz, 128 kbps
+# Límite de caracteres por petición (troceo de textos largos).
+max_chars_per_request: 2500
+
+narrator:
+  # Sofia - Captivating Narration: femenina, cálida, suave, ideal cuentos.
+  voice_id: pN4aFdNIp2mvGfTwy1Oj
+  # Ajustes orientados a narración infantil cálida, clara y tranquila.
+  # No exageramos la lentitud: speed 0.95 mantiene naturalidad.
+  settings:
+    stability: 0.7
+    similarity_boost: 0.75
+    style: 0.0
+    use_speaker_boost: true
+    speed: 0.95
+
+# Voces alternativas cálidas/suaves en español (referencia rápida):
+#   Alma   (femenina, envolvente) : 8gK5gnQBZnJWm1ta8R8X
+#   Mario C. (masculina, sabia)   : crXOIS13NaTVLeuWd3Dp
+#   Andre  (masculina, pausada)   : K7vlllngMGapgRQRDsqK
+
+# Personajes (opcional). Cada uno con su propio voice_id y ajustes.
+characters: {}
+  # ejemplo:
+  # raton_timido:
+  #   voice_id: XXXXXXXXXXXXXXXXXXXX
+  #   settings:
+  #     stability: 0.5
+  #     similarity_boost: 0.75

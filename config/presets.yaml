@@ -1,0 +1,34 @@
+# Presets de salida y de audio reutilizados por todo el pipeline.
+
+# Formato de video estándar para YouTube.
+video:
+  width: 1920
+  height: 1080
+  fps: 30
+  video_codec: libx264
+  audio_codec: aac
+  audio_bitrate: 192k
+  pixel_format: yuv420p
+  preset: medium          # equilibrio calidad/velocidad de x264
+  container: mp4
+
+# Mezcla de audio (modificable).
+audio:
+  narration_volume: 1.0   # narración al 100%
+  ambient_volume: 0.18    # ambiente al ~18% (rango recomendado 15-20%)
+
+# Loops (dormir/relajación).
+loop:
+  # Duración del crossfade (segundos) para loops suaves sin clicks.
+  crossfade_seconds: 2
+  # Duración objetivo por defecto (5 h 55 min).
+  default_duration: "05:55:00"
+
+# Duraciones habituales soportadas (referencia; se acepta cualquiera).
+common_durations:
+  - "01:00:00"
+  - "02:00:00"
+  - "03:00:00"
+  - "04:00:00"
+  - "05:00:00"
+  - "05:55:00"

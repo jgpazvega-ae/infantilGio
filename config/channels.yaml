@@ -1,0 +1,24 @@
+# Configuración del/los canal(es) de YouTube.
+# La subida real se implementa en una fase posterior; aquí solo se define la
+# identidad usada al construir la metadata (descripción, hashtags, etc.).
+
+default_channel: infantilgio
+
+channels:
+  infantilgio:
+    name: "infantilGio"
+    language: es-MX
+    # Texto que se añade al final de cada descripción de YouTube.
+    signature: |
+      ─────────────────────────────
+      Suscríbete para más cuentos y videos para dormir. 🌙
+    default_hashtags:
+      - "#cuentosinfantiles"
+      - "#cuentosparadormir"
+      - "#infantil"
+    # Categoría por defecto de YouTube ("Education" o "Entertainment").
+    category: education
+    # ¿Contenido hecho para niños? (obligatorio declararlo en YouTube.)
+    made_for_kids: true
+    # Privacidad por defecto al subir (private | unlisted | public).
+    default_privacy: private

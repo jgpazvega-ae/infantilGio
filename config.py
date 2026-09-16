@@ -1,125 +1,124 @@
 """
-Configuración central del proyecto.
+Configuración central de infantilGio.
 
-Aquí se definen rutas, parámetros de voz, resolución de salida y demás
-ajustes reutilizados por todos los scripts. No se hardcodean rutas
-absolutas: todo se calcula relativo a la raíz del proyecto (BASE_DIR).
+Carga variables de entorno (.env) y los archivos YAML de config/, y expone
+las rutas del proyecto (todas relativas a BASE_DIR, sin rutas absolutas
+hardcodeadas). Nunca imprime ni expone la API key.
 """
 
 import os
 from pathlib import Path
 
+import yaml
 from dotenv import load_dotenv
 
-# Carga las variables definidas en el archivo .env (si existe)
 load_dotenv()
 
 # ---------------------------------------------------------------------------
-# Rutas del proyecto (todas relativas a la raíz)
+# Rutas base del proyecto
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
+CONFIG_DIR = BASE_DIR / "config"
 
-STORIES_DIR = BASE_DIR / "stories"            # Textos de los cuentos (.txt)
-FOOTAGE_DIR = BASE_DIR / "footage"            # Clips de video base
-NARRATION_DIR = BASE_DIR / "audio" / "narration"  # Audio narrado generado
-AMBIENT_DIR = BASE_DIR / "audio" / "ambient"      # Sonido ambiental
-OUTPUT_DIR = BASE_DIR / "output"              # Videos finales
-LOOPS_DIR = OUTPUT_DIR / "loops"              # Loops de footage
-THUMBNAILS_DIR = BASE_DIR / "thumbnails"      # Miniaturas
-ASSETS_DIR = BASE_DIR / "assets"              # Recursos (fuentes, etc.)
+CONTENT_DIR = BASE_DIR / "content"
+IDEAS_DIR = CONTENT_DIR / "ideas"
+STORIES_DIR = CONTENT_DIR / "stories"
+SCRIPTS_CONTENT_DIR = CONTENT_DIR / "scripts"
+SCENE_PLANS_DIR = CONTENT_DIR / "scene_plans"
+METADATA_DIR = CONTENT_DIR / "metadata"
+
+ASSETS_DIR = BASE_DIR / "assets"
+FOOTAGE_DIR = ASSETS_DIR / "footage"
+MUSIC_DIR = ASSETS_DIR / "music"
+ASSETS_AMBIENT_DIR = ASSETS_DIR / "ambient"
+IMAGES_DIR = ASSETS_DIR / "images"
+CHARACTERS_ASSETS_DIR = ASSETS_DIR / "characters"
 FONTS_DIR = ASSETS_DIR / "fonts"
 
-# Directorios que deben existir siempre
-_REQUIRED_DIRS = [
-    STORIES_DIR,
-    FOOTAGE_DIR,
-    NARRATION_DIR,
-    AMBIENT_DIR,
-    OUTPUT_DIR,
-    LOOPS_DIR,
+AUDIO_DIR = BASE_DIR / "audio"
+NARRATION_DIR = AUDIO_DIR / "narration"
+AUDIO_CHARACTERS_DIR = AUDIO_DIR / "characters"
+AUDIO_AMBIENT_DIR = AUDIO_DIR / "ambient"
+AUDIO_FINAL_DIR = AUDIO_DIR / "final"
+
+VIDEO_DIR = BASE_DIR / "video"
+VIDEO_SCENES_DIR = VIDEO_DIR / "scenes"
+VIDEO_INTERMEDIATE_DIR = VIDEO_DIR / "intermediate"
+VIDEO_FINAL_DIR = VIDEO_DIR / "final"
+
+THUMBNAILS_DIR = BASE_DIR / "thumbnails"
+
+OUTPUT_DIR = BASE_DIR / "output"
+OUTPUT_STORIES_DIR = OUTPUT_DIR / "stories"
+OUTPUT_SLEEP_DIR = OUTPUT_DIR / "sleep"
+PACKAGES_DIR = OUTPUT_DIR / "packages"
+
+LOGS_DIR = BASE_DIR / "logs"
+CACHE_DIR = BASE_DIR / "cache"
+
+_ALL_DIRS = [
+    IDEAS_DIR, STORIES_DIR, SCRIPTS_CONTENT_DIR, SCENE_PLANS_DIR, METADATA_DIR,
+    FOOTAGE_DIR, MUSIC_DIR, ASSETS_AMBIENT_DIR, IMAGES_DIR,
+    CHARACTERS_ASSETS_DIR, FONTS_DIR,
+    NARRATION_DIR, AUDIO_CHARACTERS_DIR, AUDIO_AMBIENT_DIR, AUDIO_FINAL_DIR,
+    VIDEO_SCENES_DIR, VIDEO_INTERMEDIATE_DIR, VIDEO_FINAL_DIR,
     THUMBNAILS_DIR,
-    FONTS_DIR,
+    OUTPUT_STORIES_DIR, OUTPUT_SLEEP_DIR, PACKAGES_DIR,
+    LOGS_DIR, CACHE_DIR,
 ]
 
 
 def ensure_dirs():
-    """Crea los directorios del proyecto si no existen."""
-    for directory in _REQUIRED_DIRS:
+    """Crea todos los directorios del proyecto si no existen (idempotente)."""
+    for directory in _ALL_DIRS:
         directory.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
-# ElevenLabs (text-to-speech)
+# Carga de YAML
+# ---------------------------------------------------------------------------
+def _load_yaml(name):
+    ruta = CONFIG_DIR / name
+    if not ruta.exists():
+        return {}
+    with open(ruta, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f) or {}
+
+
+VOICES = _load_yaml("voices.yaml")
+CHANNELS = _load_yaml("channels.yaml")
+STYLES = _load_yaml("styles.yaml")
+PRESETS = _load_yaml("presets.yaml")
+
+# ---------------------------------------------------------------------------
+# Secretos (desde entorno; NUNCA se imprimen)
 # ---------------------------------------------------------------------------
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
 
-# voice_id de la voz narradora. Se puede sobrescribir con la variable de
-# entorno ELEVENLABS_VOICE_ID. Por defecto usamos "Sofia - Captivating
-# Narration": voz femenina española, cálida, suave y dulce, ideal para
-# narración de cuentos antes de dormir.
-#
-# Alternativas cálidas/suaves en español (cambia DEFAULT_VOICE_ID por una):
-#   - Sofia  (femenina, dulce, storytelling) : pN4aFdNIp2mvGfTwy1Oj  [por defecto]
-#   - Alma   (femenina, envolvente, wellness) : 8gK5gnQBZnJWm1ta8R8X
-#   - Mario C. (masculina, calmada y sabia)   : crXOIS13NaTVLeuWd3Dp
-#   - Andre  (masculina, pausada, envolvente) : K7vlllngMGapgRQRDsqK
-# Explora más en https://elevenlabs.io/app/voice-library
-DEFAULT_VOICE_ID = "pN4aFdNIp2mvGfTwy1Oj"  # Sofia - Captivating Narration
-VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", DEFAULT_VOICE_ID)
+# voice_id efectivo: la variable de entorno tiene prioridad sobre voices.yaml.
+_env_voice = os.getenv("ELEVENLABS_VOICE_ID", "").strip()
+NARRATOR_VOICE_ID = _env_voice or VOICES.get("narrator", {}).get("voice_id", "")
 
-# Modelo de TTS. "eleven_multilingual_v2" soporta español con buena calidad.
-TTS_MODEL_ID = "eleven_multilingual_v2"
-TTS_OUTPUT_FORMAT = "mp3_44100_128"  # 44.1 kHz, 128 kbps
-
-# Ajustes de voz orientados a una narración infantil suave y lenta para dormir.
-# - stability alto  -> entonación más estable y calmada
-# - similarity_boost alto -> se mantiene fiel al timbre de la voz
-# - style bajo -> menos dramatismo, tono más neutro y relajante
-# - speed < 1.0 -> ritmo más lento (soportado por el modelo)
-VOICE_SETTINGS = {
-    "stability": 0.75,
-    "similarity_boost": 0.75,
-    "style": 0.0,
-    "use_speaker_boost": True,
-    "speed": 0.9,
-}
-
-# Límite de caracteres por petición. La API acepta bastante más, pero
-# troceamos en fragmentos manejables para textos largos y para poder
-# reintentar por partes si algo falla.
-TTS_MAX_CHARS = 2500
 
 # ---------------------------------------------------------------------------
-# Video
+# Accesos rápidos a presets (con valores por defecto seguros)
 # ---------------------------------------------------------------------------
-VIDEO_WIDTH = 1920
-VIDEO_HEIGHT = 1080
-VIDEO_FPS = 30
+def video_preset():
+    return PRESETS.get("video", {})
 
-# Volúmenes de mezcla en el ensamblado de video.
-NARRATION_VOLUME = 1.0    # Narración al 100%
-AMBIENT_VOLUME = 0.18     # Ambiente al ~18% (entre 15-20%)
 
-# Duración objetivo por defecto para los loops de dormir, en segundos.
-# 5 horas y 55 minutos = 21300 s (según la petición del proyecto).
-DEFAULT_LOOP_SECONDS = 5 * 3600 + 55 * 60  # 21300
+def audio_preset():
+    return PRESETS.get("audio", {})
 
-# Sonido ambiental por defecto (el audio del mar aportado en el proyecto).
-DEFAULT_AMBIENT_FILE = AMBIENT_DIR / "ambient_mar.mp3"
 
-# Duración del crossfade (en segundos) para hacer loops "perfectos" con xfade.
-LOOP_XFADE_SECONDS = 2
+def loop_preset():
+    return PRESETS.get("loop", {})
 
-# ---------------------------------------------------------------------------
-# Miniaturas
-# ---------------------------------------------------------------------------
-THUMB_WIDTH = 1280
-THUMB_HEIGHT = 720
 
-# Fuente para el título de la miniatura. Si no existe el archivo, el script
-# cae a la fuente por defecto de Pillow.
-THUMB_FONT_PATH = FONTS_DIR / "title.ttf"
-THUMB_FONT_SIZE = 90
-THUMB_TEXT_COLOR = (255, 255, 255)      # Blanco
-THUMB_STROKE_COLOR = (0, 0, 0)          # Contorno negro para legibilidad
-THUMB_STROKE_WIDTH = 6
+def thumbnail_style():
+    return STYLES.get("thumbnail", {})
+
+
+def default_channel():
+    key = CHANNELS.get("default_channel")
+    return CHANNELS.get("channels", {}).get(key, {})
