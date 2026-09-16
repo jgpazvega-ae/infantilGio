@@ -58,6 +58,15 @@ def build_ocean_filter(cfg):
     """
     cfg = cfg or {}
     partes = []
+    # Recorte de la parte inicial/final que no es mar (tonos, golpes, etc.).
+    ts = cfg.get("trim_start", 0) or 0
+    te = cfg.get("trim_end", 0) or 0
+    if ts or te:
+        trim = f"atrim=start={ts}"
+        if te:
+            trim += f":end={te}"
+        partes.append(trim)
+        partes.append("asetpts=N/SR/TB")
     if cfg.get("declick", True):
         partes.append("adeclick")
     if cfg.get("highpass_hz"):
