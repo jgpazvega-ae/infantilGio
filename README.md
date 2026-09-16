@@ -87,6 +87,19 @@ La voz del narrador se configura en `config/voices.yaml` (`narrator.voice_id`).
 Por defecto: **Sofia** (femenina, cálida y suave). Alternativas comentadas en
 ese archivo. Ajustes orientados a narración infantil clara y tranquila.
 
+**Dos formas de obtener la narración:**
+
+1. **Con API key (headless):** define `ELEVENLABS_API_KEY` en `.env` y usa
+   `scripts/generate_audio.py` / `pipeline.py story ...`. El SDK genera el mp3.
+
+2. **Con el conector de ElevenLabs (sin API key):** genera la narración desde
+   el conector/asistente y guárdala como
+   `audio/narration/<slug>.mp3` (donde `<slug>` es el slug del título del
+   cuento, p. ej. `andre-y-el-tren-de-las-estrellas.mp3`). El pipeline detecta
+   que la narración ya existe y **reutiliza ese archivo** por caché, sin volver
+   a llamar a la API. Así puedes producir el video completo aunque no tengas la
+   clave configurada en el entorno.
+
 ---
 
 ## 3. Uso rápido
