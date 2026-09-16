@@ -46,6 +46,9 @@ def normalize_clip(src, dst, width, height, fps, preset="medium",
 
     args += [
         "-an", "-c:v", "libx264", "-preset", preset, "-pix_fmt", "yuv420p",
+        # Calidad constante con tope de bitrate para acotar el tamaño del video
+        # largo (el resultado se genera por stream-copy de este clip).
+        "-crf", "23", "-maxrate", "2600k", "-bufsize", "5200k",
         "-r", str(fps), "-g", str(gop), "-keyint_min", str(gop), dst,
     ]
     run_ffmpeg(args, logger=logger)

@@ -30,9 +30,14 @@ audio_cleanup:
     trim_end: 0                # 0 = hasta el final
     declick: true
     notches_hz: [1900, 1600]   # tonos/silbidos residuales (no son mar)
-    highpass_hz: 40
+    highpass_hz: 75            # quita rumble/manejo del Plaud
     lowpass_hz: 7000           # quita la línea de siseo agudo (~7.4 kHz)
-    denoise: 6                 # reducción suave del fondo (sin gutear las olas)
+    # Reducción de ruido FUERTE del siseo del Plaud, en 2 pasadas. El orden
+    # (subir nivel -> denoise) lo maneja build_ocean_filter.
+    denoise_nr: 22             # 1ª pasada (dB)
+    denoise_nf: -38            # piso de ruido estimado (dB)
+    denoise_nr2: 10            # 2ª pasada suave
+    denoise_nf2: -45
     body_gain_db: 3            # realce del cuerpo de las olas (~260 Hz)
     air_gain_db: 2             # realce de la espuma/aire (~4.2 kHz)
     loudnorm_i: -15            # loudness objetivo (LUFS)

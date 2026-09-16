@@ -76,15 +76,28 @@ def build_ocean_filter(cfg):
         w = 320 if i == 0 else 180
         g = -32 if i == 0 else -16
         partes.append(f"equalizer=f={hz}:width_type=h:width={w}:g={g}")
-    if cfg.get("denoise", 0):
-        partes.append(f"afftdn=nr={cfg['denoise']}:nf=-40")
+
+    # IMPORTANTE: la grabación (Plaud) es muy silenciosa, así que primero
+    # SUBIMOS el nivel (loudnorm) y LUEGO quitamos el ruido; si no, el denoise
+    # confundiría el mar (muy bajo) con ruido y lo eliminaría.
+    partes.append(f"loudnorm=I={cfg.get('loudnorm_i', -15)}:TP=-1.5:LRA=11")
+
+    # Reducción de ruido del Plaud (siseo estacionario). Puede ir en 2 pasadas
+    # para un fondo más limpio sin gutear las olas.
+    nr = cfg.get("denoise_nr", cfg.get("denoise", 0) or 0)
+    nf = cfg.get("denoise_nf", -38)
+    if nr:
+        partes.append(f"afftdn=nr={nr}:nf={nf}")
+        nr2 = cfg.get("denoise_nr2", 0)
+        if nr2:
+            partes.append(f"afftdn=nr={nr2}:nf={cfg.get('denoise_nf2', -45)}")
+
     if cfg.get("lowpass_hz"):
         partes.append(f"lowpass=f={cfg['lowpass_hz']}")
     if cfg.get("body_gain_db"):
         partes.append(f"equalizer=f=260:width_type=o:width=1.2:g={cfg['body_gain_db']}")
     if cfg.get("air_gain_db"):
         partes.append(f"equalizer=f=4200:width_type=o:width=1.6:g={cfg['air_gain_db']}")
-    partes.append(f"loudnorm=I={cfg.get('loudnorm_i', -15)}:TP=-1.5:LRA=11")
     partes.append("alimiter=limit=0.891")  # techo ~ -1 dBFS
     return ",".join(partes)
 

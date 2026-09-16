@@ -67,7 +67,7 @@ def _make_moon_png(dst, size=280):
 
 def build_from_image(image, out, duration=30, size=None, fps=None,
                      motion="water", zoom_amp=0.035, horizon=0.45,
-                     logger=None, cache_dir=None):
+                     water_strength=1.9, logger=None, cache_dir=None):
     """
     Crea un clip base a partir de una imagen fija con MOVIMIENTO MÍNIMO.
 
@@ -109,9 +109,12 @@ def build_from_image(image, out, duration=30, size=None, fps=None,
     y0 = int(h * horizon)          # inicio del mar
     span = max(1, h - y0)          # alto de la zona de mar
     mask = f"clip((Y-{y0})/{span}\\,0\\,1)"   # 0 en el cielo, 1 abajo
-    # Mapas de desplazamiento animados (128 = sin desplazar; ±px suave).
-    xexpr = (f"128 + 9*sin(Y/10 + T*1.2)*{mask} + 5*sin(X/48 + T*0.7)*{mask}")
-    yexpr = (f"128 + 6*sin(X/18 - T*1.0)*{mask}")
+    s = water_strength
+    a1, a2, a3 = round(9 * s, 2), round(5 * s, 2), round(6 * s, 2)
+    # Mapas de desplazamiento animados (128 = sin desplazar; ±px). `s` marca la
+    # intensidad del oleaje (mayor = olas más marcadas).
+    xexpr = (f"128 + {a1}*sin(Y/10 + T*1.35)*{mask} + {a2}*sin(X/44 + T*0.8)*{mask}")
+    yexpr = (f"128 + {a3}*sin(X/16 - T*1.05)*{mask}")
     graph = (
         f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
         f"crop={w}:{h},format=rgb24[bg];\n"
