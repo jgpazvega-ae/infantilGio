@@ -1,0 +1,8 @@
+# Dependencias del pipeline de cuentos infantiles + loops para dormir
+# Instalar con: pip install -r requirements.txt
+
+elevenlabs>=1.0.0      # Cliente oficial de ElevenLabs (text-to-speech)
+moviepy>=1.0.3         # Edición y ensamblado de video
+ffmpeg-python>=0.2.0   # Wrapper de ffmpeg para loops y mezcla de audio
+pillow>=10.0.0         # Generación de miniaturas
+python-dotenv>=1.0.0   # Carga de variables de entorno desde .env

@@ -1,0 +1,25 @@
+# Entorno y credenciales
+.env
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Salidas generadas (pueden ser muy pesadas: no versionar)
+output/*.mp4
+output/loops/*.mp4
+audio/narration/*.mp3
+thumbnails/*.png
+thumbnails/*.jpg
+
+# Material base pesado (opcional: descomenta si no quieres versionar footage)
+# footage/*.mp4
+
+# YouTube OAuth
+client_secret*.json
+token.json
+token.pickle
+
+# Sistema
+.DS_Store
